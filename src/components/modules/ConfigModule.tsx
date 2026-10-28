@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { AppState } from '@/lib/types';
-import { Save, AlertTriangle, RefreshCw, Activity, BookOpen, PenLine, Trash2 } from 'lucide-react';
+import { Save, AlertTriangle, RefreshCw, Activity, BookOpen, PenLine, Trash2, Database } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { db } from '@/lib/turso/data-client';
 import { doc, setDoc } from '@/lib/turso/data-client';
