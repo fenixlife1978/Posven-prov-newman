@@ -84,7 +84,7 @@ export async function getSessionUser(sessionId: string | undefined) {
   const row = result.rows[0] as Record<string, any>;
   if (Number(row.acceso_bloqueado)) return null;
   await db.execute({ sql: 'UPDATE sessions SET last_seen_at=CURRENT_TIMESTAMP WHERE id=?', args: [sessionId] });
-  return { id: String(row.id), username: String(row.username), email: row.email ? String(row.email) : null, nombre: String(row.nombre), rol: String(row.rol), ...(JSON.parse(String(row.data_json || '{}'))) };
+  return { ...(JSON.parse(String(row.data_json || '{}'))), id: String(row.id), username: String(row.username), email: row.email ? String(row.email) : null, nombre: String(row.nombre), rol: String(row.rol), accesoBloqueado: false };
 }
 
 export const COLLECTIONS = new Set([
