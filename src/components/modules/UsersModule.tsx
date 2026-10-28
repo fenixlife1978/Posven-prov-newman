@@ -3,8 +3,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { UserPlus, Trash2, Edit2, Shield, X, Save, Users as UsersIcon, Mail, Lock, User as UserIcon } from 'lucide-react';
-import { db } from '@/lib/turso/firestore-compat';
-import { collection, doc, setDoc, getDocs, deleteDoc, updateDoc } from '@/lib/turso/firestore-compat';
+import { db } from '@/lib/turso/data-client';
+import { collection, doc, setDoc, getDocs, deleteDoc, updateDoc } from '@/lib/turso/data-client';
 import { toast } from '@/hooks/use-toast';
 
 interface UserProfile {
