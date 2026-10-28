@@ -14,6 +14,7 @@ interface UserProfile {
   rol: 'administrador' | 'cajero';
   fechaCreacion: string;
   uid: string;
+  isSeedAdmin?: boolean;
 }
 
 export default function UsersModule() {
@@ -47,7 +48,7 @@ export default function UsersModule() {
   }, []);
 
   const handleSave = async () => {
-    if (!formData.nombre || !formData.email || (!editingId && !formData.password)) {
+    if (!formData.nombre || (!editingId && (!formData.email || !formData.password))) {
       alert("Por favor complete todos los campos requeridos.");
       return;
     }
@@ -57,7 +58,8 @@ export default function UsersModule() {
       if (editingId) {
         await updateDoc(doc(db, 'users', editingId), {
           nombre: formData.nombre.toUpperCase(),
-          rol: formData.rol
+          rol: formData.rol,
+          ...(formData.password ? { password: formData.password } : {})
         });
         toast({ title: "Perfil actualizado", description: "Los cambios se guardaron en Turso." });
       } else {
@@ -99,6 +101,7 @@ export default function UsersModule() {
   };
 
   const handleDelete = async (id: string) => {
+    if (id === 'seed-admin') { alert('El administrador semilla no se puede eliminar.'); return; }
     if (!confirm("¿Está seguro de eliminar este acceso de Turso?")) return;
     try {
       await deleteDoc(doc(db, 'users', id));
@@ -154,7 +157,7 @@ export default function UsersModule() {
                     <td className="text-center">
                        <div className="flex justify-center gap-2">
                           <button onClick={() => handleEdit(u)} className="btn-icon h-8 w-8 text-ink hover:text-brand-gold" title="Modificar"><Edit2 className="w-4 h-4"/></button>
-                          <button onClick={() => handleDelete(u.id)} className="btn-icon h-8 w-8 text-ink hover:text-status-danger" title="Eliminar"><Trash2 className="w-4 h-4"/></button>
+                          {!u.isSeedAdmin && u.id !== 'seed-admin' && <button onClick={() => handleDelete(u.id)} className="btn-icon h-8 w-8 text-ink hover:text-status-danger" title="Eliminar"><Trash2 className="w-4 h-4"/></button>}
                        </div>
                     </td>
                   </tr>
@@ -190,15 +193,13 @@ export default function UsersModule() {
                 </div>
               </div>
 
-              {!editingId && (
-                <div className="form-group">
-                  <label className="text-ink text-[10px] font-black uppercase block mb-1">Contraseña Temporal</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-2.5 w-4 h-4 text-ink opacity-30" />
-                    <input type="password" minLength={6} className="form-input pl-10" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} placeholder="Mín. 6 caracteres" />
-                  </div>
+              <div className="form-group">
+                <label className="text-ink text-[10px] font-black uppercase block mb-1">{editingId ? 'Nueva contraseña (opcional)' : 'Contraseña temporal'}</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-2.5 w-4 h-4 text-ink opacity-30" />
+                  <input type="password" minLength={formData.password ? 6 : undefined} className="form-input pl-10" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} placeholder={editingId ? 'Dejar vacío para conservar la actual' : 'Mín. 6 caracteres'} />
                 </div>
-              )}
+              </div>
 
               <div className="form-group">
                 <label className="text-ink text-[10px] font-black uppercase block mb-1">Permisos</label>
