@@ -20,6 +20,12 @@ export async function GET(request: NextRequest, context: Context) {
     const { collection } = await context.params;
     if (!COLLECTIONS.has(collection)) return json({ error: 'Colección no permitida.' }, 404);
     const id = request.nextUrl.searchParams.get('id');
+    if (user.rol !== 'administrador' && ['cxp','compras','proveedores','reportesZ','auditoriaSistema','users','devoluciones','anulaciones'].includes(collection)) {
+      return json({ error: 'El rol cajero no tiene acceso a esta colección.' }, 403);
+    }
+    if (user.rol !== 'administrador' && collection === 'operaciones' && !id) {
+      return json({ error: 'El rol cajero solo puede consultar operaciones por identificador.' }, 403);
+    }
     const db = await getTurso();
     if (collection === 'users') {
       if (user.rol !== 'administrador') return json({ error: 'Permisos insuficientes.' }, 403);
@@ -40,7 +46,10 @@ export async function GET(request: NextRequest, context: Context) {
     }
     if (id) {
       const r = await db.execute({ sql: 'SELECT data_json,revision FROM pos_records WHERE collection=? AND id=?', args: [collection, id] });
-      return r.rows.length ? json({ ...parseRow(r.rows[0] as Record<string, any>), __tursoRevision: Number((r.rows[0] as any).revision || 1) }) : json(null, 404);
+      if (!r.rows.length) return json(null, 404);
+      const record = { ...parseRow(r.rows[0] as Record<string, any>), __tursoRevision: Number((r.rows[0] as any).revision || 1) };
+      if (user.rol !== 'administrador' && collection === 'terminales' && String(record.usuarioId || '') !== String(user.id)) return json({ error: 'No puede consultar otro terminal.' }, 403);
+      return json(record);
     }
     if (collection === 'catalogos') {
       const r = await db.execute('SELECT nombre,lista_json,data_json FROM catalogos ORDER BY nombre');
@@ -56,7 +65,9 @@ export async function GET(request: NextRequest, context: Context) {
     }
     const limit = Math.min(5000, Math.max(1, Number(request.nextUrl.searchParams.get('limit') || 1000)));
     const r = await db.execute({ sql: 'SELECT id,data_json,revision FROM pos_records WHERE collection=? ORDER BY updated_at DESC LIMIT ?', args: [collection, limit] });
-    return json(r.rows.map(row => ({ id: String((row as any).id), ...parseRow(row as Record<string, any>), __tursoRevision: Number((row as any).revision || 1) })));
+    let rows = r.rows.map(row => ({ id: String((row as any).id), ...parseRow(row as Record<string, any>), __tursoRevision: Number((row as any).revision || 1) }));
+    if (user.rol !== 'administrador' && collection === 'terminales') rows = rows.filter((row: any) => String(row.usuarioId || '') === String(user.id));
+    return json(rows);
   } catch (error) {
     console.error('[turso-data/get]', error);
     return json({ error: 'No se pudieron leer los datos de Turso.' }, 503);
@@ -67,7 +78,7 @@ export async function PUT(request: NextRequest, context: Context) {
   try {
     const user = await authorize(request);
     if (!user) return json({ error: 'Sesión no válida.' }, 401);
-    if (user.rol !== 'administrador' && !['ventas','productos','movimientos','caja'].includes((await context.params).collection)) return json({ error: 'Permisos insuficientes.' }, 403);
+    if (user.rol !== 'administrador' && !['ventas','movimientos','caja'].includes((await context.params).collection)) return json({ error: 'Permisos insuficientes.' }, 403);
     const { collection } = await context.params;
     if (!COLLECTIONS.has(collection)) return json({ error: 'Colección no permitida.' }, 404);
     const body = await request.json();
