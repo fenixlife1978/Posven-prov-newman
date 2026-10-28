@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  trailingSlash: true, // Crucial para que Electron resuelva las rutas de archivos correctamente
+  trailingSlash: true,
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
-    unoptimized: true, // Requerido para exportación estática
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
