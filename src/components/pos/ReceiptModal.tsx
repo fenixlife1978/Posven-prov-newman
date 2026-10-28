@@ -204,16 +204,20 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
             body {
               font-family: monospace;
               width: 72mm;
+              box-sizing: border-box;
               margin: 0 auto;
-              padding: 4mm;
-              font-size: 12px;
+              padding: 2mm;
+              font-size: 10px;
               color: #000;
               background: #fff;
-              line-height: 1.2;
+              line-height: 1.25;
               letter-spacing: normal;
+              overflow-wrap: anywhere;
             }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 2px; }
-            td { vertical-align: top; padding: 1px 0; }
+            table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-bottom: 3px; }
+            td { vertical-align: top; padding: 1.5px 1px; overflow-wrap: anywhere; word-break: normal; }
+            td:first-child { width: 64%; }
+            td:last-child { width: 36%; text-align: right; white-space: normal; }
             .text-center { text-align: center; }
             .text-right { text-align: right; }
             .bold { font-weight: bold; }
@@ -257,16 +261,20 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
               body {
                 font-family: monospace;
                 width: 72mm;
+                box-sizing: border-box;
                 margin: 0 auto;
-                padding: 4mm;
-                font-size: 12px;
+                padding: 2mm;
+                font-size: 10px;
                 color: #000;
                 background: #fff;
-                line-height: 1.2;
+                line-height: 1.25;
                 letter-spacing: normal;
+                overflow-wrap: anywhere;
               }
-              table { width: 100%; border-collapse: collapse; margin-bottom: 2px; }
-              td { vertical-align: top; padding: 1px 0; }
+              table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-bottom: 3px; }
+              td { vertical-align: top; padding: 1.5px 1px; overflow-wrap: anywhere; word-break: normal; }
+              td:first-child { width: 64%; }
+              td:last-child { width: 36%; text-align: right; white-space: normal; }
               .text-center { text-align: center; }
               .text-right { text-align: right; }
               .bold { font-weight: bold; }
