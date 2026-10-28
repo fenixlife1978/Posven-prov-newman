@@ -2,20 +2,18 @@
 
 import { AppState, Terminal, Movimiento } from './types';
 import { enqueueOfflineOperation, registerOfflineProcessor } from './offline-queue';
-import { db, rtdb } from './turso/firestore-compat';
+import { db } from './turso/firestore-compat';
 import {
   collection, doc, getDoc, getDocs, onSnapshot, orderBy, limit, query, setDoc, where,
   writeBatch, runTransaction, startAfter
 } from './turso/firestore-compat';
 import type { DocumentData, QueryDocumentSnapshot } from './turso/firestore-compat';
-import { onValue, ref, update, get as rtdbGet } from './turso/realtime-compat';
 
 const STORAGE_KEY = 'posven_pro_session_data_cache';
 const PAGE_SIZE = 50;
 const CONFIG_COLLECTION = 'config';
 const CONFIG_DOC_ID = 'general';
 const CATALOGOS_COLLECTION = 'catalogos';
-const RTDB_PRODUCTS_PATH = 'pos_system_data/productos';
 
 // ============================================================
 // UBICACIÓN EN FIRESTORE POR LISTA DEL ESTADO.
@@ -445,76 +443,15 @@ async function applyInventoryMovementsTransaction(params: {
     result = { movements: persisted, productIds, products: persistedProducts };
   });
   if (result?.products?.length) {
-    await syncProductosRTDB([], result.products);
+    await syncProductosTurso([], result.products);
   }
   return result;
 }
 
-// ============================================================
-// ESPEJO EN TIEMPO REAL (RTDB) PARA PRODUCTOS.
-// El stock/precios viven en RTDB para sincronizar cajas sin re-leer
-// toda la colección de Firestore en cada cambio (gran ahorro de lecturas).
-// Firestore sigue siendo la fuente de verdad persistente.
-// ============================================================
-function syncProductosRTDB(prevArr: any[] | undefined, newArr: any[] | undefined): Promise<void> {
-  if (!rtdb) return Promise.resolve();
-  const prevById = new Map((prevArr || []).filter(x => x && x.id).map(x => [String(x.id), x]));
-  const newList = newArr || [];
-  const updates: Record<string, any> = {};
-  const removals: string[] = [];
-  newList.forEach(p => {
-    if (!p || !p.id) return;
-    const before = prevById.get(String(p.id));
-    const clean = sanitizeForFirestore(p);
-    if (!before || JSON.stringify(sanitizeForFirestore(before)) !== JSON.stringify(clean)) {
-      updates[String(p.id)] = clean;
-    }
-  });
-  prevById.forEach((_x, id) => {
-    if (!newList.some(p => p && String(p.id) === id)) removals.push(id);
-  });
-  if (Object.keys(updates).length === 0 && removals.length === 0) return Promise.resolve();
-  // RTDB permite enviar actualizaciones y eliminaciones en un único update
-  // multipath. Así una operación que elimina varios productos no genera un
-  // write remoto independiente por cada producto.
-  const rootRef = ref(rtdb, RTDB_PRODUCTS_PATH);
-  const payload: Record<string, any> = { ...updates };
-  removals.forEach(id => { payload[id] = null; });
-  return update(rootRef, payload)
-    .catch(e => console.error('RTDB sync productos:', e));
-}
-
-// Sincroniza el espejo RTDB con Firestore (migración y sanado):
-//  - Si el espejo está vacío → lo siembra COMPLETO desde Firestore.
-//  - Si está incompleto (menos productos que Firestore) → lo repuebla completo.
-// Firestore sigue siendo la fuente de verdad; RTDB es el espejo barato de tiempo real.
-async function bootstrapProductos(): Promise<void> {
-  if (!rtdb || !db) return;
-  try {
-    const snap = await rtdbGet(ref(rtdb, RTDB_PRODUCTS_PATH));
-    const val = snap.val();
-    const mirrorItems: any[] = val ? Object.values(val).filter(Boolean) : [];
-
-    if (mirrorItems.length === 0) {
-      const items = await loadCollection('productos');
-      if (items.length > 0) {
-        applyPatch({ productos: mergeById((cache as any).productos, items) });
-        const updates: Record<string, any> = {};
-        items.forEach(p => { updates[String(p.id)] = sanitizeForFirestore(p); });
-        await update(ref(rtdb, RTDB_PRODUCTS_PATH), updates);
-      }
-      return;
-    }
-
-    applyPatch({ productos: mergeById((cache as any).productos, mirrorItems) });
-    // Si el espejo ya existe, RTDB es el canal realtime de productos.
-    // No hacemos un count() de Firestore en cada arranque: es una lectura
-    // adicional innecesaria. El saneado completo se ejecuta solo cuando
-    // el espejo está vacío; las escrituras normales mantienen ambos lados.
-
-  } catch (e) {
-    console.error('bootstrapProductos:', e);
-  }
+// La escritura de productos ocurre dentro de la transacción Turso que registra
+// la operación. No existe espejo secundario ni una escritura posterior separada.
+function syncProductosTurso(_prevArr: any[] | undefined, _newArr: any[] | undefined): Promise<void> {
+  return Promise.resolve();
 }
 
 // ============================================================
@@ -993,18 +930,7 @@ function init() {
     }
   }, (err) => { if (err.code !== 'permission-denied') console.warn("Sync config:", err); }));
 
-  // 2) PRODUCTOS (tiempo real vía RTDB: el espejo evita re-leer la colección en cada venta).
-  bootstrapProductos();
-  if (rtdb) {
-    teardownFns.push(onValue(ref(rtdb, RTDB_PRODUCTS_PATH), (snap) => {
-      const val = snap.val() || {};
-      const items = Object.values(val).filter(Boolean);
-      // El espejo RTDB representa el estado completo de productos.
-      // Reemplazamos el cache, no hacemos merge, para que una eliminación
-      // remota tampoco pueda dejar un producto fantasma en esta caja.
-      applyPatch({ productos: items });
-    }, (err) => { if (err?.code !== 'permission-denied') console.warn("RTDB productos:", err); }));
-  }
+  // 2) PRODUCTOS: las lecturas en vivo se realizan desde los registros Turso.
 
   // 3) LISTAS VIVAS ENTRE CAJAS.
   // CxC/CxP: el POS solo necesita deuda ACTIVA en tiempo real. Mantener
@@ -1187,7 +1113,7 @@ export const Store = {
       tx.set(operationRef,{tipo:operationType,operationId,fecha:String(canonicalOperationDoc.fecha||Utils.ahora()),referencia:String(canonicalId),terminalId:terminalId||'GLOBAL'},{merge:false});
       result={operationId,operationType,receiptId:canonicalId,operationDoc:canonicalOperationDoc,products:[...products.values()],terminal: terminalRef ? {...terminalRemote,id:terminalId,[counterField]:nextCounter+1} : null};
     });
-    if (result?.products?.length) await syncProductosRTDB([],result.products);
+    if (result?.products?.length) await syncProductosTurso([],result.products);
     return result;
   },
 
@@ -2059,7 +1985,7 @@ export const Store = {
     // parcheamos libroDiario para que el asiento aparezca inmediatamente.
     if (result?.products?.length) {
       // Productos: Firestore sigue siendo la fuente de verdad y RTDB es su espejo.
-      await syncProductosRTDB(cache.productos || [], result.products);
+      await syncProductosTurso(cache.productos || [], result.products);
       applyPatch({ productos: mergeById(cache.productos || [], result.products) });
     }
     if (result?.journals?.length) {
@@ -2576,7 +2502,7 @@ export const Store = {
               applyPatch({ productos: corrected });
               toSync = corrected;
             }
-            return syncProductosRTDB(prevArr, toSync);
+            return syncProductosTurso(prevArr, toSync);
           })
           .catch(e => console.error("Error persistiendo productos:", e)));
       } else {
