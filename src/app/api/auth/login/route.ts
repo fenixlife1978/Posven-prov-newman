@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     const sessionId = newId();
     await db.execute({ sql: `INSERT INTO sessions (id,user_id,expires_at) VALUES (?,?,datetime('now','+7 days'))`, args: [sessionId, String(user.id)] });
     const response = NextResponse.json({
-      user: { id: String(user.id), username: String(user.username), email: user.email ? String(user.email) : null, nombre: String(user.nombre), rol: String(user.rol), ...JSON.parse(String(user.data_json || '{}')) }
+      user: { ...JSON.parse(String(user.data_json || '{}')), id: String(user.id), username: String(user.username), email: user.email ? String(user.email) : null, nombre: String(user.nombre), rol: String(user.rol), accesoBloqueado: false }
     });
     response.cookies.set('posven_session', sessionId, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 7 * 24 * 60 * 60 });
     return response;
