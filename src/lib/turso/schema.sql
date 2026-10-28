@@ -133,7 +133,7 @@ CREATE TABLE IF NOT EXISTS compras (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Idempotencia: reemplaza la colección Firestore "operaciones".
+-- Idempotencia: reemplaza la colección "operaciones".
 CREATE TABLE IF NOT EXISTS operaciones (
   id TEXT PRIMARY KEY,
   prefijo TEXT NOT NULL,
@@ -157,7 +157,7 @@ CREATE TABLE IF NOT EXISTS auditoria_sistema (
 CREATE INDEX IF NOT EXISTS idx_auditoria_terminal_fecha ON auditoria_sistema(terminal_id, fecha);
 CREATE INDEX IF NOT EXISTS idx_auditoria_usuario_fecha ON auditoria_sistema(usuario_id, fecha);
 
--- Documentos legacy que existan en Firestore y no formen parte del flujo actual.
+-- Documentos heredados que no formen parte del flujo actual.
 CREATE TABLE IF NOT EXISTS legacy_documents (
   path TEXT PRIMARY KEY,
   data_json TEXT NOT NULL DEFAULT '{}',
