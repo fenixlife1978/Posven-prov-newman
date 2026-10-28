@@ -35,11 +35,23 @@ export async function GET(request: NextRequest, context: Context) {
     }
     if (collection === 'catalogos' && id) {
       const r = await db.execute({ sql: 'SELECT lista_json FROM catalogos WHERE nombre=?', args: [id] }).catch(() => ({ rows: [] as any[] }));
-      return r.rows.length ? json(JSON.parse(String((r.rows[0] as any).lista_json || '[]'))) : json([], 200);
+      return r.rows.length ? json({ lista: JSON.parse(String((r.rows[0] as any).lista_json || '[]')) }) : json({ lista: [] }, 200);
     }
     if (id) {
       const r = await db.execute({ sql: 'SELECT data_json FROM pos_records WHERE collection=? AND id=?', args: [collection, id] });
       return r.rows.length ? json(parseRow(r.rows[0] as Record<string, any>)) : json(null, 404);
+    }
+    if (collection === 'catalogos') {
+      const r = await db.execute('SELECT nombre,lista_json,data_json FROM catalogos ORDER BY nombre');
+      return json(r.rows.map((row: any) => ({ id: String(row.nombre), lista: JSON.parse(String(row.lista_json || '[]')), ...JSON.parse(String(row.data_json || '{}')) })));
+    }
+    if (collection === 'operaciones') {
+      const r = await db.execute('SELECT id,operation_id,data_json FROM operaciones ORDER BY created_at DESC LIMIT 5000');
+      return json(r.rows.map((row: any) => ({ id: String(row.id), ...JSON.parse(String(row.data_json || '{}')), operationId: String(row.operation_id) })));
+    }
+    if (collection === 'auditoriaSistema') {
+      const r = await db.execute('SELECT id,tipo,usuario_id,fecha,data_json FROM auditoria_sistema ORDER BY created_at DESC LIMIT 5000');
+      return json(r.rows.map((row: any) => ({ id: String(row.id), tipo: row.tipo, usuarioId: row.usuario_id, fecha: row.fecha, ...JSON.parse(String(row.data_json || '{}')) })));
     }
     const limit = Math.min(5000, Math.max(1, Number(request.nextUrl.searchParams.get('limit') || 1000)));
     const r = await db.execute({ sql: 'SELECT id,data_json FROM pos_records WHERE collection=? ORDER BY updated_at DESC LIMIT ?', args: [collection, limit] });
