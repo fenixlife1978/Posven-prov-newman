@@ -1,11 +1,11 @@
 'use client';
 
-import { db, rtdb } from '@/lib/turso/firestore-compat';
-import { collection, getDocs, getDoc, setDoc, doc, writeBatch } from '@/lib/turso/firestore-compat';
-import { get as rtdbGet, ref as rtdbRef } from '@/lib/turso/realtime-compat';
+import { db, compatibilidad de productos } from '@/lib/turso/Turso-compat';
+import { collection, getDocs, getDoc, setDoc, doc, writeBatch } from '@/lib/turso/Turso-compat';
+import { get as compatibilidad de productosGet, ref as compatibilidad de productosRef } from '@/lib/turso/realtime-compat';
 import { Store } from '@/lib/db-store';
 
-// Fuentes persistentes actuales de Firestore.
+// Fuentes persistentes actuales de Turso.
 // IMPORTANTE: operaciones y auditoriaSistema no forman parte de AppState,
 // pero sí contienen información persistida que debe sobrevivir a una migración.
 const COLLECTION_KEYS = [
@@ -43,8 +43,8 @@ const CONFIG_KEYS = [
   'fondoCajaHoyUSD', 'fondoCajaHoyBS', 'isCashOpen', 'cashData', 'config',
 ] as const;
 
-// RTDB: espejo de productos detectado en db-store.ts.
-const RTDB_PRODUCTS_PATH = 'pos_system_data/productos';
+// compatibilidad de productos: espejo de productos detectado en db-store.ts.
+const compatibilidad de productos_PRODUCTS_PATH = 'pos_system_data/productos';
 
 export interface BackupFile {
   app: 'posven-pro';
@@ -55,9 +55,9 @@ export interface BackupFile {
     tursoCollections: Record<string, number>;
     catalogs: Record<string, number>;
     legacyDocuments: Record<string, boolean>;
-    rtdbProductsPresent: boolean;
-    firebaseAuth: {
-      provider: 'firebase-auth';
+    compatibilidad de productosProductsPresent: boolean;
+    authentication: {
+      provider: 'Turso-auth';
       credentialsIncluded: false;
       note: string;
     };
@@ -79,17 +79,17 @@ export async function crearRespaldo(): Promise<BackupFile> {
   await hidratarTodo();
   const state = Store.get() as Record<string, any>;
   const data: Record<string, unknown> = {};
-  const firestoreCollections: Record<string, number> = {};
+  const tursoCollections: Record<string, number> = {};
   const catalogs: Record<string, number> = {};
   const legacyDocuments: Record<string, boolean> = {};
 
   // Colecciones operativas completas.
   for (const k of COLLECTION_KEYS) {
     data[k] = state[k] ?? [];
-    firestoreCollections[k] = Array.isArray(data[k]) ? (data[k] as any[]).length : 0;
+    TursoCollections[k] = Array.isArray(data[k]) ? (data[k] as any[]).length : 0;
   }
 
-  // Catálogos completos, directamente desde Firestore para no depender del cache.
+  // Catálogos completos, directamente desde Turso para no depender de la caché.
   for (const k of CATALOG_KEYS) {
     try {
       const snap = await getDoc(doc(db, 'catalogos', k));
@@ -110,12 +110,12 @@ export async function crearRespaldo(): Promise<BackupFile> {
     try {
       const rows = await leerColeccion(k);
       data[k] = rows;
-      if (k !== 'users') firestoreCollections[k] = rows.length;
-      else firestoreCollections.users = rows.length;
+      if (k !== 'users') TursoCollections[k] = rows.length;
+      else TursoCollections.users = rows.length;
     } catch (e) {
       console.error('backup: no se pudo leer colección auxiliar', k, e);
       data[k] = [];
-      firestoreCollections[k] = 0;
+      TursoCollections[k] = 0;
     }
   }
 
@@ -134,15 +134,15 @@ export async function crearRespaldo(): Promise<BackupFile> {
 
   // Compatibilidad histórica: las lecturas de productos apuntan a la colección Turso,
   // sin mantener una segunda base de datos.
-  let rtdbProductsPresent = false;
+  let compatibilidad de productosProductsPresent = false;
   try {
-    const snap = await rtdbGet(rtdbRef(rtdb, RTDB_PRODUCTS_PATH));
+    const snap = await compatibilidad de productosGet(compatibilidad de productosRef(compatibilidad de productos, compatibilidad de productos_PRODUCTS_PATH));
     if (snap.exists()) {
-      rtdbProductsPresent = true;
-      data.rtdb_productos = snap.val();
+      compatibilidad de productosProductsPresent = true;
+      data.compatibilidad de productos_productos = snap.val();
     }
   } catch (e) {
-    console.error('backup: no se pudo leer RTDB productos', e);
+    console.error('backup: no se pudo leer compatibilidad de productos productos', e);
   }
 
   return {
@@ -151,11 +151,11 @@ export async function crearRespaldo(): Promise<BackupFile> {
     createdAt: new Date().toISOString(),
     data,
     meta: {
-      firestoreCollections,
+      TursoCollections,
       catalogs,
       legacyDocuments,
-      rtdbProductsPresent,
-      firebaseAuth: {
+      compatibilidad de productosProductsPresent,
+      TursoAuth: {
         provider: 'turso-sessions',
         credentialsIncluded: false,
         note: 'El respaldo contiene perfiles de usuarios desde Turso; las contraseñas no se exportan. La autenticación usa sesiones de servidor y contraseñas con hash.',
@@ -197,7 +197,7 @@ export async function restaurarRespaldo(backup: BackupFile): Promise<void> {
 
   await Store.set(patch as any);
 
-  // Auxiliares Firestore.
+  // Auxiliares Turso.
   for (const k of ['users', 'operaciones', 'auditoriaSistema'] as const) {
     const rows = (d[k] as any[]) || [];
     if (!rows.length) continue;
