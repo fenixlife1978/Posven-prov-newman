@@ -43,7 +43,7 @@ const CONFIG_KEYS = [
   'fondoCajaHoyUSD', 'fondoCajaHoyBS', 'isCashOpen', 'cashData', 'config',
 ] as const;
 
-// rtdb: espejo de productos detectado en db-store.ts.
+// Lectura de compatibilidad de productos desde la misma tabla Turso.
 const RTDB_PRODUCTS_PATH = 'pos_system_data/productos';
 
 export interface BackupFile {
@@ -151,11 +151,11 @@ export async function crearRespaldo(): Promise<BackupFile> {
     createdAt: new Date().toISOString(),
     data,
     meta: {
-      TursoCollections,
+      tursoCollections,
       catalogs,
       legacyDocuments,
       rtdbProductsPresent,
-      TursoAuth: {
+      authentication: {
         provider: 'turso-sessions',
         credentialsIncluded: false,
         note: 'El respaldo contiene perfiles de usuarios desde Turso; las contraseñas no se exportan. La autenticación usa sesiones de servidor y contraseñas con hash.',
