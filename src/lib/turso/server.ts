@@ -85,5 +85,5 @@ export async function getSessionUser(sessionId: string | undefined) {
 
 export const COLLECTIONS = new Set([
   'productos','movimientos','ventas','cxc','cxp','clientes','proveedores','devoluciones','anulaciones',
-  'terminales','libroDiario','reportesZ','caja','compras','catalogos','config','operaciones','auditoriaSistema'
+  'terminales','libroDiario','reportesZ','caja','compras','catalogos','config','operaciones','auditoriaSistema','users'
 ]);
