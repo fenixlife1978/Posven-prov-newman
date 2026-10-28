@@ -1,71 +1,55 @@
-# Migración POSVEN PRO → Turso
+# PosVEN Pro — Turso como única base de datos
 
-## Objetivo
-Migrar únicamente el proyecto nuevo `posven-pro` a Turso sin tocar el sistema antiguo `posven.vercel.app`.
+## Arquitectura objetivo
+
+- Turso/libSQL es la única base de datos operativa y la fuente de verdad.
+- El navegador nunca recibe `TURSO_DATABASE_URL` ni `TURSO_AUTH_TOKEN`; ambos secretos se leen exclusivamente en el servidor.
+- La interfaz consulta las rutas de servidor `/api/auth/*` y `/api/turso/*`.
+- `localStorage` y la cola offline sirven como caché/cola de reintentos; no son una base de datos autoritativa.
+- La antigua compatibilidad de lecturas en tiempo real redirige a los mismos registros Turso; no mantiene Firebase Realtime Database como espejo independiente.
+
+## Variables de Vercel
+
+Variables necesarias en el entorno **Production** y en cualquier entorno de prueba que se utilice:
+- `TURSO_DATABASE_URL`
+- `TURSO_AUTH_TOKEN`
+
+No crear variables `NEXT_PUBLIC_TURSO_*`: las credenciales no deben incorporarse al bundle del navegador. Los endpoints devuelven datos de negocio, nunca el token.
 
 ## Autenticación
-Firebase Authentication queda fuera de la migración.
 
-Se crea autenticación propia:
-- administrador semilla obligatorio: `admin`
-- contraseña semilla: `admin123`
-- rol: `administrador`
-- contraseña almacenada únicamente como hash
-- el administrador puede crear los demás usuarios
-- el usuario administrador actual del negocio se registrará nuevamente en Turso con la contraseña actual que conserva el propietario
+- Las sesiones se almacenan en Turso y se transportan mediante la cookie HTTP-only `posven_session`.
+- Las contraseñas se almacenan mediante hash scrypt con salt aleatorio; no se guarda la contraseña en texto plano.
+- En una base nueva, el primer arranque crea el administrador semilla `admin` con contraseña inicial `admin123`. Cambiarla desde un flujo seguro de administración antes de uso operativo.
+- El usuario semilla no puede eliminarse ni degradarse desde la API.
+- La lista de usuarios está restringida al rol administrador.
 
-## Fuentes Firestore/RTDB auditadas
-Persistencia operativa detectada:
-- productos
-- movimientos
-- ventas
-- cxc
-- cxp
-- clientes
-- proveedores
-- devoluciones
-- anulaciones
-- terminales
-- libroDiario
-- reportesZ
-- caja
-- compras
-- operaciones (idempotencia)
-- auditoriaSistema
-- users (perfil, no contraseñas)
-- config/general
-- catalogos/*
-- documentos legacy pos_system_data/state y data/state, si existen
-- espejo RTDB pos_system_data/productos
+## Tablas inicializadas por la aplicación
 
-El espejo RTDB no se considerará una fuente independiente hasta comprobar si contiene datos únicos; se conserva durante la fase de respaldo/auditoría.
+- `app_config`: configuración general.
+- `catalogos`: listas de catálogos.
+- `pos_records`: registros operativos por colección e identificador, conservando el objeto JSON completo.
+- `users` y `sessions`: cuentas y sesiones propias.
+- `operaciones`: identificadores idempotentes de operaciones.
+- `auditoria_sistema`: eventos de auditoría.
 
-## Regla de preservación
-Cada documento migrado conserva:
-1. su ID original;
-2. el JSON completo en `data_json`;
-3. campos indexados sólo cuando son necesarios para consultas/operaciones.
+El esquema `src/lib/turso/schema.sql` conserva el modelo detallado y las tablas relacionales auxiliares para ampliar consultas sin perder el JSON original.
 
-Esto evita perder campos anidados o campos futuros durante la primera migración.
+## Migración de datos existentes
 
-## Reinicio de fábrica
-El reinicio de fábrica debe:
-1. limpiar los datos operativos configurables según la política del sistema;
-2. revocar sesiones existentes;
-3. conservar o recrear el administrador semilla;
-4. garantizar nuevamente `admin / admin123 / administrador`;
-5. dejar el sistema listo para volver a configurarse.
+Retirar Firebase del código no importa automáticamente los datos históricos que estén en un proyecto Firebase. Antes de poner esta rama en producción, exportar y validar el respaldo existente y después importarlo a Turso. Comparar conteos, identificadores, totales de inventario, saldos de CxC/CxP, cajas abiertas, ventas y cortes Z. No borrar la base histórica hasta terminar esa reconciliación.
 
-No se debe depender de Firebase para recuperar el acceso después de un reinicio.
+## Validaciones antes de producción
 
-## Secuencia segura
-1. Respaldar Firebase completo.
-2. Validar el JSON y sus conteos.
-3. Importar a SQLite/Turso.
-4. Crear/validar administrador semilla.
-5. Crear usuario administrador real del propietario.
-6. Implementar sesiones propias.
-7. Sustituir lecturas/escrituras de Firebase en POSVEN PRO.
-8. Probar caja, ventas, inventario, CxC/CxP, pagos, X/Z, recuperación e idempotencia.
-9. Sólo después retirar Firebase de POSVEN PRO.
-10. Mantener `posven.vercel.app` intacto hasta cerrar la validación.
+1. Compilación de Next.js con las rutas API habilitadas.
+2. Login, cierre de sesión, expiración y revocación de sesión.
+3. Alta/edición/bloqueo de usuarios y protección del administrador semilla.
+4. Lectura/escritura y sincronización de inventario, ventas, caja, CxC/CxP, devoluciones, anulaciones, compras, libro diario y reportes Z.
+5. Pruebas de atomicidad e idempotencia para operaciones financieras y actualización de existencias.
+6. Pruebas de interrupción de internet, cola offline y sincronización posterior sin duplicados.
+7. Importación de respaldo y conciliación de conteos/saldos.
+8. Confirmación del despliegue correcto en Vercel antes de promover esta rama.
+
+## Nota sobre escritorio
+
+La aplicación web ahora requiere rutas de servidor para usar Turso de forma segura. El instalador Electron basado en exportación HTML estática no puede usar directamente estas rutas; su empaquetado debe conectarse al despliegue web autenticado o a un backend seguro. No publicar un instalador estático que no pueda llegar a la API.
