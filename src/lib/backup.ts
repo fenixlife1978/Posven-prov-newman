@@ -1,8 +1,8 @@
 'use client';
 
-import { db, compatibilidad de productos } from '@/lib/turso/Turso-compat';
-import { collection, getDocs, getDoc, setDoc, doc, writeBatch } from '@/lib/turso/Turso-compat';
-import { get as compatibilidad de productosGet, ref as compatibilidad de productosRef } from '@/lib/turso/realtime-compat';
+import { db, rtdb } from '@/lib/turso/firestore-compat';
+import { collection, getDocs, getDoc, setDoc, doc, writeBatch } from '@/lib/turso/firestore-compat';
+import { get as rtdbGet, ref as rtdbRef } from '@/lib/turso/realtime-compat';
 import { Store } from '@/lib/db-store';
 
 // Fuentes persistentes actuales de Turso.
@@ -43,8 +43,8 @@ const CONFIG_KEYS = [
   'fondoCajaHoyUSD', 'fondoCajaHoyBS', 'isCashOpen', 'cashData', 'config',
 ] as const;
 
-// compatibilidad de productos: espejo de productos detectado en db-store.ts.
-const compatibilidad de productos_PRODUCTS_PATH = 'pos_system_data/productos';
+// rtdb: espejo de productos detectado en db-store.ts.
+const RTDB_PRODUCTS_PATH = 'pos_system_data/productos';
 
 export interface BackupFile {
   app: 'posven-pro';
@@ -55,7 +55,7 @@ export interface BackupFile {
     tursoCollections: Record<string, number>;
     catalogs: Record<string, number>;
     legacyDocuments: Record<string, boolean>;
-    compatibilidad de productosProductsPresent: boolean;
+    rtdbProductsPresent: boolean;
     authentication: {
       provider: 'Turso-auth';
       credentialsIncluded: false;
@@ -134,15 +134,15 @@ export async function crearRespaldo(): Promise<BackupFile> {
 
   // Compatibilidad histórica: las lecturas de productos apuntan a la colección Turso,
   // sin mantener una segunda base de datos.
-  let compatibilidad de productosProductsPresent = false;
+  let rtdbProductsPresent = false;
   try {
-    const snap = await compatibilidad de productosGet(compatibilidad de productosRef(compatibilidad de productos, compatibilidad de productos_PRODUCTS_PATH));
+    const snap = await rtdbGet(rtdbRef(rtdb, RTDB_PRODUCTS_PATH));
     if (snap.exists()) {
-      compatibilidad de productosProductsPresent = true;
-      data.compatibilidad de productos_productos = snap.val();
+      rtdbProductsPresent = true;
+      data.rtdb_productos = snap.val();
     }
   } catch (e) {
-    console.error('backup: no se pudo leer compatibilidad de productos productos', e);
+    console.error('backup: no se pudo leer rtdb productos', e);
   }
 
   return {
@@ -154,7 +154,7 @@ export async function crearRespaldo(): Promise<BackupFile> {
       TursoCollections,
       catalogs,
       legacyDocuments,
-      compatibilidad de productosProductsPresent,
+      rtdbProductsPresent,
       TursoAuth: {
         provider: 'turso-sessions',
         credentialsIncluded: false,
