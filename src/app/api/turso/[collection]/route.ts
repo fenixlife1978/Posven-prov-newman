@@ -92,6 +92,10 @@ export async function PUT(request: NextRequest, context: Context) {
         VALUES(?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
         ON CONFLICT(id) DO UPDATE SET username=excluded.username,email=excluded.email,nombre=excluded.nombre,rol=excluded.rol,password_hash=excluded.password_hash,acceso_bloqueado=excluded.acceso_bloqueado,data_json=excluded.data_json,updated_at=CURRENT_TIMESTAMP`,
         args: [id, username, email, nombre, rol, hash, data?.accesoBloqueado ? 1 : 0, id === 'seed-admin' ? 1 : 0, JSON.stringify(userData)] });
+      if (passwordHash) {
+        const currentSession = request.cookies.get('posven_session')?.value || '';
+        await db.execute({ sql: 'UPDATE sessions SET revoked_at=CURRENT_TIMESTAMP WHERE user_id=? AND id<>? AND revoked_at IS NULL', args: [id, currentSession] });
+      }
       return json({ ok: true, id });
     }
     if (collection === 'config') {
