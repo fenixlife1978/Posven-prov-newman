@@ -2,13 +2,13 @@
 
 import { AppState, Terminal, Movimiento } from './types';
 import { enqueueOfflineOperation, registerOfflineProcessor } from './offline-queue';
-import { db, rtdb } from './firebase';
+import { db, rtdb } from './turso/firestore-compat';
 import {
   collection, doc, getDoc, getDocs, onSnapshot, orderBy, limit, query, setDoc, where,
   writeBatch, runTransaction, startAfter
-} from "firebase/firestore";
+} from './turso/firestore-compat';
 import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
-import { onValue, ref, update, get as rtdbGet } from "firebase/database";
+import { onValue, ref, update, get as rtdbGet } from './turso/realtime-compat';
 
 const STORAGE_KEY = 'posven_pro_session_data_cache';
 const PAGE_SIZE = 50;
