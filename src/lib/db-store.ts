@@ -2,12 +2,12 @@
 
 import { AppState, Terminal, Movimiento } from './types';
 import { enqueueOfflineOperation, registerOfflineProcessor } from './offline-queue';
-import { db } from './turso/firestore-compat';
+import { db } from './turso/data-client';
 import {
   collection, doc, getDoc, getDocs, onSnapshot, orderBy, limit, query, setDoc, where,
   writeBatch, runTransaction, startAfter
-} from './turso/firestore-compat';
-import type { DocumentData, QueryDocumentSnapshot } from './turso/firestore-compat';
+} from './turso/data-client';
+import type { DocumentData, QueryDocumentSnapshot } from './turso/data-client';
 
 const STORAGE_KEY = 'posven_pro_session_data_cache';
 const PAGE_SIZE = 50;
