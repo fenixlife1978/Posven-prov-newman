@@ -7,7 +7,7 @@ import {
   collection, doc, getDoc, getDocs, onSnapshot, orderBy, limit, query, setDoc, where,
   writeBatch, runTransaction, startAfter
 } from './turso/firestore-compat';
-import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
+import type { DocumentData, QueryDocumentSnapshot } from './turso/firestore-compat';
 import { onValue, ref, update, get as rtdbGet } from './turso/realtime-compat';
 
 const STORAGE_KEY = 'posven_pro_session_data_cache';
