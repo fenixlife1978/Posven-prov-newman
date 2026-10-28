@@ -5,8 +5,7 @@ import { AppState } from '@/lib/types';
 import { Save, AlertTriangle, RefreshCw, Activity, BookOpen, PenLine, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { db } from '@/lib/turso/data-client';
-import { auth, signOut } from '@/lib/turso/auth-compat';
-import { collection, getDocs, deleteDoc, doc, setDoc, writeBatch, query, limit } from '@/lib/turso/data-client';
+import { doc, setDoc } from '@/lib/turso/data-client';
 import { crearRespaldo, descargarRespaldo, cargarRespaldoDesdeArchivo } from '@/lib/backup';
 
 export default function ConfigModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
@@ -73,158 +72,40 @@ export default function ConfigModule({ state, updateState }: { state: AppState, 
     }
   };
 
-  // ============================================================
-  // FUNCIÓN PARA ELIMINAR UNA COLECCIÓN COMPLETA CON BATCH
-  // ============================================================
-  const deleteCollection = async (collectionPath: string, batchSize = 100) => {
-    try {
-      const colRef = collection(db, collectionPath);
-      const snapshot = await getDocs(query(colRef, limit(batchSize)));
-
-      if (snapshot.empty) {
-        console.log(`✅ Colección "${collectionPath}" vacía o no existe.`);
-        return;
-      }
-
-      const batch = writeBatch(db);
-      snapshot.docs.forEach((docSnap) => {
-        batch.delete(docSnap.ref);
-      });
-      await batch.commit();
-
-      // Recursivamente eliminar el resto (si hay más de batchSize documentos)
-      await deleteCollection(collectionPath, batchSize);
-    } catch (error) {
-      console.warn(`⚠️ Error al eliminar colección "${collectionPath}":`, error);
-    }
-  };
-
   const formatearSistema = async () => {
-    const confirmMsg = 
-      '⚠️ ¿ESTÁ ABSOLUTAMENTE SEGURO?\n\n' +
-      'ESTA ACCIÓN ELIMINARÁ PERMANENTEMENTE:\n' +
-      '✅ TODOS los productos e inventario.\n' +
-      '✅ TODAS las ventas y créditos.\n' +
-      '✅ TODOS los clientes y proveedores.\n' +
-      '✅ TODOS los movimientos y asientos contables.\n' +
-      '✅ TODOS los usuarios y sus credenciales.\n' +
-      '✅ TODOS los reportes y configuraciones.\n\n' +
-      '⚠️ ESTA ACCIÓN NO SE PUEDE DESHACER.';
-
+    const confirmMsg =
+      '⚠️ ¿ESTÁ ABSOLUTAMENTE SEGURO?\\n\\n' +
+      'Se eliminarán los datos operativos de Turso, se revocarán las sesiones y se restablecerá la configuración.\\n' +
+      'El administrador semilla se conservará con usuario admin y contraseña inicial admin123.\\n\\n' +
+      'Esta acción no se puede deshacer.';
     if (!confirm(confirmMsg)) return;
 
     setIsFormatting(true);
     try {
-      // ===== 1. ELIMINAR TODAS LAS COLECCIONES =====
-      const colecciones = [
-        'productos',
-        'ventas',
-        'clientes',
-        'cxc',
-        'cxp',
-        'movimientos',
-        'terminales',
-        'proveedores',
-        'devoluciones',
-        'anulaciones',
-        'libroDiario',
-        'reportesZ',
-        'catalogos',
-        'inventario',
-        'config',
-        'users'
-      ];
-
-      console.log('🗑️ Iniciando eliminación de colecciones...');
-      for (const colName of colecciones) {
-        console.log(`Eliminando colección "${colName}"...`);
-        await deleteCollection(colName);
-      }
-
-      // ===== 2. ELIMINAR DOCUMENTOS DE pos_system_data (excepto 'state') =====
-      try {
-        const mainColRef = collection(db, 'pos_system_data');
-        const mainSnapshot = await getDocs(mainColRef);
-        const batch = writeBatch(db);
-        mainSnapshot.docs.forEach((docSnap) => {
-          if (docSnap.id !== 'state') {
-            batch.delete(docSnap.ref);
-          }
-        });
-        await batch.commit();
-        console.log('✅ Documentos extras en pos_system_data eliminados (excepto state).');
-      } catch (e) {
-        console.warn('⚠️ Error al limpiar pos_system_data:', e);
-      }
-
-      // ===== 3. REINICIAR CONFIGURACIÓN GLOBAL (config/general) =====
-      const configRef = doc(db, 'config', 'general');
-      await setDoc(configRef, {
-        isInitialized: false,
-        ultimoZ: 0,
-        proximoRecibo: 1,
-        proximaDevolucion: 1,
-        proximaAnulacion: 1,
-        acumuladoHistorico: 0,
-        fechaUltimoZ: '',
-        fondoCajaHoyUSD: 0,
-        fondoCajaHoyBS: 0,
-        tasa: state.tasa || 36.50,
-        pinDevolucion: '000000',
-        empresa: {
-          nombre: 'NOMBRE DE SU NEGOCIO',
-          rif: 'J-00000000-0',
-          direccion: 'DIRECCIÓN FISCAL',
-          telefono: '0000-0000000'
-        }
-      }, { merge: true });
-      console.log('✅ Configuración global reiniciada con valores iniciales.');
-
-      // ===== 4. LIMPIAR SESIÓN Y SALIR =====
+      const response = await fetch('/api/admin/factory-reset', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ tasa: state.tasa })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'No se pudo reiniciar el sistema.');
       if (typeof sessionStorage !== 'undefined') sessionStorage.clear();
       if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('posven_pro_session_data_cache');
+        localStorage.removeItem('posven_pro_offline_operations_v1');
         localStorage.removeItem('posven_apertura_done');
         localStorage.removeItem('posven_last_cxp_alert');
       }
-
-      toast({ 
-        title: "Sistema Formateado", 
-        description: "Todos los datos han sido eliminados permanentemente." 
-      });
-
-      // ===== 5. CERRAR SESIÓN =====
-      try {
-        await signOut(auth);
-      } catch (e) {
-        console.warn('⚠️ Error al cerrar sesión:', e);
-      }
-
-      // ===== 6. REDIRIGIR AL LOGIN =====
+      toast({ title: 'Sistema reiniciado', description: 'Turso quedó limpio y el administrador semilla fue conservado.' });
       window.location.href = '/login';
-
     } catch (error: any) {
-      console.error("❌ Error en formateo:", error);
-      toast({ 
-        variant: "destructive", 
-        title: "Fallo en Limpieza", 
-        description: error.message 
-      });
+      console.error('Error en reinicio de fábrica Turso:', error);
+      toast({ variant: 'destructive', title: 'Fallo en reinicio', description: error?.message || 'No se pudo completar el reinicio.' });
     } finally {
       setIsFormatting(false);
     }
-  };
-
-  // Función para obtener el valor seguro de resultados
-  const getResultados = () => {
-    if (!migracionResultado || !migracionResultado.success) {
-      return null;
-    }
-    return migracionResultado.resultados || null;
-  };
-
-  const resultados = getResultados();
-
-  return (
+  };  return (
     <div className="max-w-2xl space-y-6 animate-in fade-in duration-300 pb-20">
       {/* ===== TASA DE CAMBIO ===== */}      <div className="card shadow-lg border-line">
         <div className="card-head bg-surface-soft border-b border-line px-5 py-4">
