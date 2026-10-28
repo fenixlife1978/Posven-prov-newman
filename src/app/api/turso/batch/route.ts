@@ -76,8 +76,13 @@ export async function POST(request: NextRequest) {
         else {
           const data = w.data ?? {};
           const opId = String(data.operationId ?? data.operation_id ?? id);
-          // Sin ON CONFLICT: una operación repetida aborta toda la transacción.
-          await tx.execute({ sql: 'INSERT INTO operaciones(id,operation_id,data_json) VALUES(?,?,?)', args: [id, opId, JSON.stringify(data)] });
+          // Las operaciones de negocio son estrictamente idempotentes; una restauración mergeada
+          // puede omitir IDs ya presentes sin duplicar registros.
+          if (w.merge) {
+            await tx.execute({ sql: 'INSERT OR IGNORE INTO operaciones(id,operation_id,data_json) VALUES(?,?,?)', args: [id, opId, JSON.stringify(data)] });
+          } else {
+            await tx.execute({ sql: 'INSERT INTO operaciones(id,operation_id,data_json) VALUES(?,?,?)', args: [id, opId, JSON.stringify(data)] });
+          }
         }
       } else if (w.op === 'delete') {
         await tx.execute({ sql: 'DELETE FROM pos_records WHERE collection=? AND id=?', args: [collection, id] });
