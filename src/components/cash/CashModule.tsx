@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Store, Utils } from '@/lib/db-store';
-import { auth } from '@/lib/firebase';
+import { auth } from '@/lib/turso/auth-compat';
 import { toast } from '@/hooks/use-toast';
 import {
   Table,
