@@ -56,6 +56,12 @@ export async function POST(request: NextRequest) {
           if (!username || !['administrador','cajero'].includes(rol) || (id === 'seed-admin' && rol !== 'administrador')) throw new Error('Datos de usuario o rol inválidos.');
           await tx.execute({ sql: 'UPDATE users SET username=?,email=?,nombre=?,rol=?,acceso_bloqueado=?,data_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?', args: [username,email,nombre,rol,data.accesoBloqueado ? 1 : 0,JSON.stringify(data),id] });
         }
+      } else if (collection === 'auditoriaSistema') {
+        if (w.op === 'delete') await tx.execute({ sql: 'DELETE FROM auditoria_sistema WHERE id=?', args: [id] });
+        else {
+          const data = w.data ?? {};
+          await tx.execute({ sql: 'INSERT INTO auditoria_sistema(id,tipo,usuario_id,fecha,data_json) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET tipo=excluded.tipo,usuario_id=excluded.usuario_id,fecha=excluded.fecha,data_json=excluded.data_json', args: [id, data.tipo ?? null, data.usuarioId ?? null, data.fecha ?? new Date().toISOString(), JSON.stringify(data)] });
+        }
       } else if (collection === 'operaciones') {
         if (w.op === 'delete') await tx.execute({ sql: 'DELETE FROM operaciones WHERE id=?', args: [id] });
         else {
