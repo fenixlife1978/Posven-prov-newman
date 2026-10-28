@@ -159,7 +159,7 @@ export default function LicoreriaPOS() {
                       const myTerm = terminals.find((t: Terminal) => t.usuarioId === currentUser.uid);
                       if (myTerm?.id) Store.startTerminalSync(myTerm.id, false, [myTerm]);
                       const cajaEstaAbierta = !!myTerm?.isCashOpen;
-                      // La caja abierta en Firestore es la fuente autoritativa. Nunca
+                      // La caja abierta en Turso es la fuente autoritativa. Nunca
                       // volver a exigir apertura por la ausencia de un flag local:
                       // un corte eléctrico/reinicio no debe crear una nueva jornada.
                       const debeMostrarApertura = !cajaEstaAbierta;
