@@ -52,7 +52,7 @@ export default function GlobalControlModule({ state, updateState }: { state: App
       const newStatus = !currentStatus;
       const userRef = doc(db, 'users', userId);
       
-      // Actualización directa y forzada en Firestore
+      // Actualización directa y forzada en Turso
       await updateDoc(userRef, { 
         accesoBloqueado: newStatus 
       });
