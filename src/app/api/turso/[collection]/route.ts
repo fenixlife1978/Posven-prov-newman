@@ -32,14 +32,14 @@ export async function GET(request: NextRequest, context: Context) {
     }
     if (collection === 'config' && id) {
       const r = await db.execute({ sql: 'SELECT data_json FROM app_config WHERE id=?', args: [id] });
-      return r.rows.length ? json(parseRow(r.rows[0] as Record<string, any>)) : json(null, 404);
+      return r.rows.length ? json({ ...parseRow(r.rows[0] as Record<string, any>), __tursoRevision: Number((r.rows[0] as any).revision || 1) }) : json(null, 404);
     }
     if (collection === 'catalogos' && id) {
       const r = await db.execute({ sql: 'SELECT lista_json FROM catalogos WHERE nombre=?', args: [id] }).catch(() => ({ rows: [] as any[] }));
       return r.rows.length ? json({ lista: JSON.parse(String((r.rows[0] as any).lista_json || '[]')) }) : json({ lista: [] }, 200);
     }
     if (id) {
-      const r = await db.execute({ sql: 'SELECT data_json FROM pos_records WHERE collection=? AND id=?', args: [collection, id] });
+      const r = await db.execute({ sql: 'SELECT data_json,revision FROM pos_records WHERE collection=? AND id=?', args: [collection, id] });
       return r.rows.length ? json(parseRow(r.rows[0] as Record<string, any>)) : json(null, 404);
     }
     if (collection === 'catalogos') {
@@ -55,8 +55,8 @@ export async function GET(request: NextRequest, context: Context) {
       return json(r.rows.map((row: any) => ({ id: String(row.id), tipo: row.tipo, usuarioId: row.usuario_id, fecha: row.fecha, ...JSON.parse(String(row.data_json || '{}')) })));
     }
     const limit = Math.min(5000, Math.max(1, Number(request.nextUrl.searchParams.get('limit') || 1000)));
-    const r = await db.execute({ sql: 'SELECT id,data_json FROM pos_records WHERE collection=? ORDER BY updated_at DESC LIMIT ?', args: [collection, limit] });
-    return json(r.rows.map(row => ({ id: String((row as any).id), ...parseRow(row as Record<string, any>) })));
+    const r = await db.execute({ sql: 'SELECT id,data_json,revision FROM pos_records WHERE collection=? ORDER BY updated_at DESC LIMIT ?', args: [collection, limit] });
+    return json(r.rows.map(row => ({ id: String((row as any).id), ...parseRow(row as Record<string, any>), __tursoRevision: Number((row as any).revision || 1) })));
   } catch (error) {
     console.error('[turso-data/get]', error);
     return json({ error: 'No se pudieron leer los datos de Turso.' }, 503);
@@ -105,7 +105,7 @@ export async function PUT(request: NextRequest, context: Context) {
       const opId = String(data?.operationId ?? id);
       await db.execute({ sql: 'INSERT INTO operaciones (id,operation_id,data_json) VALUES (?,?,?) ON CONFLICT(operation_id) DO NOTHING', args: [id, opId, JSON.stringify(data)] });
     } else {
-      await db.execute({ sql: 'INSERT INTO pos_records (collection,id,data_json,updated_at) VALUES (?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(collection,id) DO UPDATE SET data_json=excluded.data_json,updated_at=CURRENT_TIMESTAMP', args: [collection, id, JSON.stringify(data)] });
+      await db.execute({ sql: 'INSERT INTO pos_records (collection,id,data_json,revision,updated_at) VALUES (?,?,?,1,CURRENT_TIMESTAMP) ON CONFLICT(collection,id) DO UPDATE SET data_json=excluded.data_json,revision=pos_records.revision+1,updated_at=CURRENT_TIMESTAMP', args: [collection, id, JSON.stringify(data)] });
     }
     return json({ ok: true, id });
   } catch (error) {
