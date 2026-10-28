@@ -485,7 +485,9 @@ async function loadAll(name: string): Promise<void> {
       lastDoc = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
       if (snap.docs.length < 500) break;
     } while (lastDoc);
-    applyPatch({ [name]: mergeById((cache as any)[name], all) });
+    // Esta carga es completa: la respuesta remota reemplaza la caché para que
+    // registros eliminados en Turso no reaparezcan desde localStorage.
+    applyPatch({ [name]: all });
   } catch (e) {
     console.error("Error loadAll " + name + ":", e);
     loadedAll[name] = false;
