@@ -3,10 +3,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { UserPlus, Trash2, Edit2, Shield, X, Save, Users as UsersIcon, Mail, Lock, User as UserIcon } from 'lucide-react';
-import { db, firebaseConfig } from '@/lib/firebase';
-import { collection, doc, setDoc, getDocs, deleteDoc, updateDoc } from 'firebase/firestore';
-import { initializeApp, deleteApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { db } from '@/lib/turso/firestore-compat';
+import { collection, doc, setDoc, getDocs, deleteDoc, updateDoc } from '@/lib/turso/firestore-compat';
 import { toast } from '@/hooks/use-toast';
 
 interface UserProfile {
@@ -55,58 +53,36 @@ export default function UsersModule() {
     }
 
     setLoading(true);
-    let secondaryApp;
-
     try {
       if (editingId) {
-        // En edición el ID ya es el UID
-        const userRef = doc(db, 'users', editingId);
-        await updateDoc(userRef, {
-          nombre: formData.nombre,
+        await updateDoc(doc(db, 'users', editingId), {
+          nombre: formData.nombre.toUpperCase(),
           rol: formData.rol
         });
-        toast({ title: "Perfil Actualizado", description: "Los cambios se guardaron correctamente." });
+        toast({ title: "Perfil actualizado", description: "Los cambios se guardaron en Turso." });
       } else {
-        // 1. Crear usuario en Firebase Auth usando una APP SECUNDARIA
-        // Esto permite crear un usuario sin cerrar la sesión administrativa actual
-        secondaryApp = initializeApp(firebaseConfig, "SecondaryAuthApp_" + Date.now());
-        const secondaryAuth = getAuth(secondaryApp);
-        
-        const userCredential = await createUserWithEmailAndPassword(
-          secondaryAuth, 
-          formData.email, 
-          formData.password
-        );
-
-        // 2. Crear perfil en Firestore usando el UID como ID DEL DOCUMENTO
-        const newUid = userCredential.user.uid;
-        await setDoc(doc(db, 'users', newUid), {
-          uid: newUid,
+        const newId = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : 'usr-' + Date.now().toString(36);
+        await setDoc(doc(db, 'users', newId), {
+          id: newId,
+          uid: newId,
+          username: formData.email.trim().toLowerCase(),
           nombre: formData.nombre.toUpperCase(),
-          email: formData.email.toLowerCase(),
+          email: formData.email.trim().toLowerCase(),
+          password: formData.password,
           rol: formData.rol,
           fechaCreacion: new Date().toISOString(),
           accesoBloqueado: false
         });
-
-        toast({ 
-          title: "Usuario Creado", 
-          description: "Acceso configurado exitosamente con UID: " + newUid.slice(0, 6)
-        });
+        toast({ title: "Usuario creado", description: "El acceso quedó registrado en Turso." });
       }
-      
       setShowModal(false);
       setEditingId(null);
       setFormData({ nombre: '', email: '', password: '', rol: 'cajero' });
       await cargarUsuarios();
-
     } catch (error: any) {
-      console.error("Error al crear usuario:", error);
-      let msg = "Error técnico al procesar el registro.";
-      if (error.code === 'auth/email-already-in-use') msg = "El correo ya está registrado.";
-      alert(msg);
+      console.error("Error al guardar usuario en Turso:", error);
+      alert(error?.message || "No se pudo guardar el usuario en Turso.");
     } finally {
-      if (secondaryApp) await deleteApp(secondaryApp).catch(() => {});
       setLoading(false);
     }
   };
@@ -123,13 +99,13 @@ export default function UsersModule() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Está seguro de eliminar este acceso? El perfil será borrado de Firestore permanentemente.")) return;
+    if (!confirm("¿Está seguro de eliminar este acceso de Turso?")) return;
     try {
       await deleteDoc(doc(db, 'users', id));
       await cargarUsuarios();
       toast({ title: "Registro eliminado" });
     } catch (error) {
-      alert("Error al eliminar el documento.");
+      alert("No se pudo eliminar el usuario en Turso.");
     }
   };
 
