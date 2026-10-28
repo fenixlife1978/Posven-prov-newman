@@ -32,9 +32,9 @@ import {
 import { Store, initialState, Utils } from '@/lib/db-store';
 import { AppState, Terminal, Debt } from '@/lib/types';
 import { auth } from '@/lib/turso/auth-compat';
-import { db } from '@/lib/turso/firestore-compat';
+import { db } from '@/lib/turso/data-client';
 import { onAuthStateChanged, signOut } from '@/lib/turso/auth-compat';
-import { doc, onSnapshot, getDoc, collection, query, getDocs, where, setDoc } from '@/lib/turso/firestore-compat';
+import { doc, onSnapshot, getDoc, collection, query, getDocs, where, setDoc } from '@/lib/turso/data-client';
 import DashboardModule from '@/components/modules/DashboardModule';
 import { InventoryModule } from '@/components/modules/InventoryModule';
 import SalesModule from '@/components/modules/SalesModule';
