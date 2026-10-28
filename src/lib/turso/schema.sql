@@ -1,6 +1,6 @@
 -- POSVEN PRO / Turso (SQLite/libSQL)
--- Esquema base de migración desde Firestore/RTDB.
--- Regla: conservar siempre el ID original de Firestore y el payload JSON completo.
+-- Esquema operativo de Turso.
+-- Regla: conservar el ID del registro y el payload JSON completo.
 
 PRAGMA foreign_keys = ON;
 
@@ -19,14 +19,12 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   acceso_bloqueado INTEGER NOT NULL DEFAULT 0,
   is_seed_admin INTEGER NOT NULL DEFAULT 0,
-  firebase_uid TEXT,
   fecha_creacion TEXT,
   data_json TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_firebase_uid ON users(firebase_uid) WHERE firebase_uid IS NOT NULL;
 
 -- El administrador semilla se crea también por código de inicialización/reset.
 -- La contraseña se almacena como hash, nunca como texto plano.
@@ -167,7 +165,7 @@ CREATE TABLE IF NOT EXISTS legacy_documents (
   imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Sesiones propias de POSVEN; no depende de Firebase Authentication.
+-- Sesiones propias de POSVEN sobre Turso.
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
