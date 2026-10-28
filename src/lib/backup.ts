@@ -1,8 +1,8 @@
 'use client';
 
-import { db, rtdb } from '@/lib/firebase';
-import { collection, getDocs, getDoc, setDoc, doc, writeBatch } from 'firebase/firestore';
-import { get as rtdbGet, ref as rtdbRef } from 'firebase/database';
+import { db, rtdb } from '@/lib/turso/firestore-compat';
+import { collection, getDocs, getDoc, setDoc, doc, writeBatch } from '@/lib/turso/firestore-compat';
+import { get as rtdbGet, ref as rtdbRef } from '@/lib/turso/realtime-compat';
 import { Store } from '@/lib/db-store';
 
 // Fuentes persistentes actuales de Firestore.
@@ -52,7 +52,7 @@ export interface BackupFile {
   createdAt: string;
   data: Record<string, unknown>;
   meta?: {
-    firestoreCollections: Record<string, number>;
+    tursoCollections: Record<string, number>;
     catalogs: Record<string, number>;
     legacyDocuments: Record<string, boolean>;
     rtdbProductsPresent: boolean;
@@ -119,12 +119,10 @@ export async function crearRespaldo(): Promise<BackupFile> {
     }
   }
 
-  // Rutas legacy: se conservan para garantizar que ninguna migración pierda
-  // información que todavía pueda existir en el proyecto Firebase.
+  // Rutas legacy: se consultan únicamente si existieran en el repositorio Turso.
   for (const [collectionName, docId] of LEGACY_DOCUMENTS) {
     const key = `${collectionName}/${docId}`;
     try {
-      const { getDoc } = await import('firebase/firestore');
       const snap = await getDoc(doc(db, collectionName, docId));
       legacyDocuments[key] = snap.exists();
       if (snap.exists()) data[key] = { id: snap.id, ...snap.data() };
@@ -134,8 +132,8 @@ export async function crearRespaldo(): Promise<BackupFile> {
     }
   }
 
-  // Espejo RTDB de productos. Se conserva para auditoría/reconstrucción,
-  // aunque la fuente operativa actual es Firestore.
+  // Compatibilidad histórica: las lecturas de productos apuntan a la colección Turso,
+  // sin mantener una segunda base de datos.
   let rtdbProductsPresent = false;
   try {
     const snap = await rtdbGet(rtdbRef(rtdb, RTDB_PRODUCTS_PATH));
@@ -158,9 +156,9 @@ export async function crearRespaldo(): Promise<BackupFile> {
       legacyDocuments,
       rtdbProductsPresent,
       firebaseAuth: {
-        provider: 'firebase-auth',
+        provider: 'turso-sessions',
         credentialsIncluded: false,
-        note: 'El respaldo contiene perfiles Firestore (users), pero no contraseñas ni credenciales de Firebase Authentication. La migración de autenticación debe resolverse por separado antes de retirar Firebase.',
+        note: 'El respaldo contiene perfiles de usuarios desde Turso; las contraseñas no se exportan. La autenticación usa sesiones de servidor y contraseñas con hash.',
       },
     },
   };
