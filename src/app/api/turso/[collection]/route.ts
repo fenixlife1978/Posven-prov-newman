@@ -99,6 +99,8 @@ export async function PUT(request: NextRequest, context: Context) {
     } else if (collection === 'catalogos') {
       await db.execute('CREATE TABLE IF NOT EXISTS catalogos (nombre TEXT PRIMARY KEY, lista_json TEXT NOT NULL DEFAULT \'[]\', data_json TEXT NOT NULL DEFAULT \'{}\', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
       await db.execute({ sql: 'INSERT INTO catalogos (nombre,lista_json,data_json,updated_at) VALUES (?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(nombre) DO UPDATE SET lista_json=excluded.lista_json,data_json=excluded.data_json,updated_at=CURRENT_TIMESTAMP', args: [id, JSON.stringify(Array.isArray(data) ? data : (data.lista || [])), JSON.stringify(data)] });
+    } else if (collection === 'auditoriaSistema') {
+      await db.execute({ sql: 'INSERT INTO auditoria_sistema(id,tipo,usuario_id,fecha,data_json) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET tipo=excluded.tipo,usuario_id=excluded.usuario_id,fecha=excluded.fecha,data_json=excluded.data_json', args: [id, data?.tipo ?? null, data?.usuarioId ?? null, data?.fecha ?? new Date().toISOString(), JSON.stringify(data)] });
     } else if (collection === 'operaciones') {
       const opId = String(data?.operationId ?? id);
       await db.execute({ sql: 'INSERT INTO operaciones (id,operation_id,data_json) VALUES (?,?,?) ON CONFLICT(operation_id) DO NOTHING', args: [id, opId, JSON.stringify(data)] });
