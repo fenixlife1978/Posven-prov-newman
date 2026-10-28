@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Printer, X, Zap, Share2, Monitor } from 'lucide-react';
 import { Store, Utils } from '@/lib/db-store';
 import { formatBs, formatUsd } from '@/lib/currency-formatter';
-import { auth } from '@/lib/firebase';
+import { auth } from '@/lib/turso/auth-compat';
 
 declare global {
   interface Window {
