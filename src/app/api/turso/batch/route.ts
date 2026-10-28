@@ -13,14 +13,17 @@ export async function POST(request: NextRequest) {
     const allowed = new Set(['productos','movimientos','ventas','cxc','cxp','clientes','proveedores','devoluciones','anulaciones','terminales','libroDiario','reportesZ','caja','compras','catalogos','config','operaciones','auditoriaSistema','users']);
     const db = await getTurso();
     tx = await db.transaction('write');
+    const checkedRevisions = new Set<string>();
     for (const w of writes) {
       if (!allowed.has(String(w.collection)) || !w.id) throw new Error('Colección o identificador inválido.');
       const collection = String(w.collection), id = String(w.id);
-      if (w.checkRevision === true && !['config','catalogos','users','operaciones','auditoriaSistema'].includes(collection)) {
+      const revisionKey = collection + '/' + id;
+      if (w.checkRevision === true && !checkedRevisions.has(revisionKey) && !['config','catalogos','users','operaciones','auditoriaSistema'].includes(collection)) {
         const current = await tx.execute({ sql: 'SELECT revision FROM pos_records WHERE collection=? AND id=?', args: [collection, id] });
         const currentRevision = current.rows.length ? Number((current.rows[0] as any).revision || 1) : null;
         const expectedRevision = w.expectedRevision == null ? null : Number(w.expectedRevision);
         if (currentRevision !== expectedRevision) throw new Error('Conflicto de concurrencia en ' + collection + '/' + id + '. Vuelva a cargar los datos antes de repetir la operación.');
+        checkedRevisions.add(revisionKey);
       }
       if (collection === 'config') {
         if (w.op === 'delete') await tx.execute({ sql: 'DELETE FROM app_config WHERE id=?', args: [id] });
