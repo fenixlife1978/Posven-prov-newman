@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const writes = Array.isArray(body?.writes) ? body.writes : [];
     if (!writes.length || writes.length > 500) return NextResponse.json({ error: 'Lote vacío o demasiado grande.' }, { status: 400 });
-    const allowed = new Set(['productos','movimientos','ventas','cxc','cxp','clientes','proveedores','devoluciones','anulaciones','terminales','libroDiario','reportesZ','caja','compras','catalogos','config','operaciones','auditoriaSistema']);
+    const allowed = new Set(['productos','movimientos','ventas','cxc','cxp','clientes','proveedores','devoluciones','anulaciones','terminales','libroDiario','reportesZ','caja','compras','catalogos','config','operaciones','auditoriaSistema','users']);
     const db = await getTurso();
     tx = await db.transaction('write');
     for (const w of writes) {
@@ -38,6 +38,23 @@ export async function POST(request: NextRequest) {
           }
           const list = Array.isArray(data) ? data : (data.lista || []);
           await tx.execute({ sql: 'INSERT INTO catalogos(nombre,lista_json,data_json,updated_at) VALUES(?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(nombre) DO UPDATE SET lista_json=excluded.lista_json,data_json=excluded.data_json,updated_at=CURRENT_TIMESTAMP', args: [id, JSON.stringify(list), JSON.stringify(Array.isArray(data) ? { lista: data } : data)] });
+        }
+      } else if (collection === 'users') {
+        if (session.rol !== 'administrador') throw new Error('Permisos insuficientes para modificar usuarios.');
+        if (w.op === 'delete') {
+          if (id === 'seed-admin') throw new Error('No se puede eliminar el administrador semilla.');
+          await tx.execute({ sql: 'DELETE FROM users WHERE id=?', args: [id] });
+        } else {
+          const old = await tx.execute({ sql: 'SELECT password_hash,is_seed_admin FROM users WHERE id=?', args: [id] });
+          if (!old.rows.length) throw new Error('No se pueden restaurar credenciales desde un respaldo. Cree los usuarios desde el módulo Personal.');
+          const current = JSON.parse(String((await tx.execute({sql:'SELECT data_json FROM users WHERE id=?',args:[id]})).rows[0]?.data_json || '{}'));
+          const data = { ...current, ...(w.data || {}), id, uid: id };
+          const username = String(data.username || data.email || current.username || '').trim().toLowerCase();
+          const email = String(data.email || '').trim().toLowerCase() || null;
+          const nombre = String(data.nombre || username);
+          const rol = String(data.rol || 'cajero').toLowerCase();
+          if (!username || !['administrador','cajero'].includes(rol) || (id === 'seed-admin' && rol !== 'administrador')) throw new Error('Datos de usuario o rol inválidos.');
+          await tx.execute({ sql: 'UPDATE users SET username=?,email=?,nombre=?,rol=?,acceso_bloqueado=?,data_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?', args: [username,email,nombre,rol,data.accesoBloqueado ? 1 : 0,JSON.stringify(data),id] });
         }
       } else if (collection === 'operaciones') {
         if (w.op === 'delete') await tx.execute({ sql: 'DELETE FROM operaciones WHERE id=?', args: [id] });
