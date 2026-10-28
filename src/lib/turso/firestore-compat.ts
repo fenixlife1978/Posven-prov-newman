@@ -87,7 +87,7 @@ export async function updateDoc(ref: Ref, data: any) {
 export async function deleteDoc(ref: Ref) {
   return request(ref, { method: 'DELETE' });
 }
-export async function onSnapshot(ref: Ref, next: (snapshot: any) => void, error?: (error: any) => void) {
+export function onSnapshot(ref: Ref, next: (snapshot: any) => void, error?: (error: any) => void) {
   let stopped = false;
   const read = async () => {
     try {
