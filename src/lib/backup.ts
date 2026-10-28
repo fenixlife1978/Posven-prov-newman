@@ -1,7 +1,7 @@
 'use client';
 
-import { db } from '@/lib/turso/firestore-compat';
-import { collection, getDocs, getDoc, setDoc, doc, writeBatch } from '@/lib/turso/firestore-compat';
+import { db } from '@/lib/turso/data-client';
+import { collection, getDocs, getDoc, setDoc, doc, writeBatch } from '@/lib/turso/data-client';
 import { Store } from '@/lib/db-store';
 
 // Fuentes persistentes actuales de Turso.
