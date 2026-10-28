@@ -110,30 +110,7 @@ export async function crearRespaldo(): Promise<BackupFile> {
     }
   }
 
-  // Rutas legacy: se consultan únicamente si existieran en el repositorio Turso.
-  for (const [collectionName, docId] of LEGACY_DOCUMENTS) {
-    const key = `${collectionName}/${docId}`;
-    try {
-      const snap = await getDoc(doc(db, collectionName, docId));
-      legacyDocuments[key] = snap.exists();
-      if (snap.exists()) data[key] = { id: snap.id, ...snap.data() };
-    } catch (e) {
-      legacyDocuments[key] = false;
-      console.error('backup: no se pudo leer documento legacy', key, e);
-    }
-  }
 
-  // Compatibilidad histórica: las lecturas de productos apuntan a la colección Turso,
-  // sin mantener una segunda base de datos.
-  let rtdbProductsPresent = false;
-  try {
-    const snap = await rtdbGet(rtdbRef(rtdb, RTDB_PRODUCTS_PATH));
-    if (snap.exists()) {
-      rtdbProductsPresent = true;
-    }
-  } catch (e) {
-    console.error('backup: no se pudo leer rtdb productos', e);
-  }
 
   return {
     app: 'posven-pro',
