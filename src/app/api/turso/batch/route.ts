@@ -11,6 +11,20 @@ export async function POST(request: NextRequest) {
     const writes = Array.isArray(body?.writes) ? body.writes : [];
     if (!writes.length || writes.length > 500) return NextResponse.json({ error: 'Lote vacío o demasiado grande.' }, { status: 400 });
     const allowed = new Set(['productos','movimientos','ventas','cxc','cxp','clientes','proveedores','devoluciones','anulaciones','terminales','libroDiario','reportesZ','caja','compras','catalogos','config','operaciones','auditoriaSistema','users']);
+    const isAdmin = session.rol === 'administrador';
+    if (!isAdmin) {
+      const cashierWritable = new Set(['productos','movimientos','ventas','cxc','terminales','libroDiario','operaciones','auditoriaSistema','caja']);
+      if (writes.some((w: any) => !cashierWritable.has(String(w.collection)))) {
+        return NextResponse.json({ error: 'El rol cajero no puede modificar estas colecciones.' }, { status: 403 });
+      }
+      if (writes.some((w: any) => String(w.collection) === 'productos') &&
+          !writes.some((w: any) => ['ventas','movimientos'].includes(String(w.collection)))) {
+        return NextResponse.json({ error: 'El cajero solo puede actualizar existencias dentro de una operación de venta o movimiento.' }, { status: 403 });
+      }
+      if (writes.some((w: any) => String(w.collection) === 'terminales' && String(w.data?.usuarioId || '') !== String(session.id))) {
+        return NextResponse.json({ error: 'El cajero solo puede modificar su propio terminal.' }, { status: 403 });
+      }
+    }
     const db = await getTurso();
     tx = await db.transaction('write');
     const checkedRevisions = new Set<string>();
