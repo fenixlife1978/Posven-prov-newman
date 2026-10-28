@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTurso, getSessionUser, COLLECTIONS, newId } from '@/lib/turso/server';
+import { getTurso, getSessionUser, COLLECTIONS, newId, hashPassword } from '@/lib/turso/server';
 
 export const runtime = 'nodejs';
 type Context = { params: Promise<{ collection: string }> };
@@ -21,6 +21,14 @@ export async function GET(request: NextRequest, context: Context) {
     if (!COLLECTIONS.has(collection)) return json({ error: 'Colección no permitida.' }, 404);
     const id = request.nextUrl.searchParams.get('id');
     const db = await getTurso();
+    if (collection === 'users') {
+      const sql = id
+        ? 'SELECT id,username,email,nombre,rol,acceso_bloqueado,is_seed_admin,data_json FROM users WHERE id=?'
+        : 'SELECT id,username,email,nombre,rol,acceso_bloqueado,is_seed_admin,data_json FROM users ORDER BY username';
+      const r = await db.execute(id ? { sql, args: [id] } : sql);
+      const safe = r.rows.map((row: any) => ({ ...JSON.parse(String(row.data_json || '{}')), id: String(row.id), uid: String(row.id), username: String(row.username), email: row.email ? String(row.email) : '', nombre: String(row.nombre), rol: String(row.rol), accesoBloqueado: Number(row.acceso_bloqueado) === 1, isSeedAdmin: Number(row.is_seed_admin) === 1 }));
+      return id ? (safe.length ? json(safe[0]) : json(null,404)) : json(safe);
+    }
     if (collection === 'config' && id) {
       const r = await db.execute({ sql: 'SELECT data_json FROM app_config WHERE id=?', args: [id] });
       return r.rows.length ? json(parseRow(r.rows[0] as Record<string, any>)) : json(null, 404);
@@ -53,6 +61,26 @@ export async function PUT(request: NextRequest, context: Context) {
     const id = String(body?.id ?? newId());
     const data = body?.data ?? body;
     const db = await getTurso();
+    if (collection === 'users') {
+      const username = String(data?.username || data?.email || '').trim().toLowerCase();
+      const email = String(data?.email || '').trim().toLowerCase() || null;
+      const nombre = String(data?.nombre || username).trim();
+      const rol = String(data?.rol || 'cajero').toLowerCase();
+      if (!username || !['administrador','cajero'].includes(rol)) return json({ error: 'Usuario y rol válidos son obligatorios.' },400);
+      if (String(id) === 'seed-admin' && rol !== 'administrador') return json({ error: 'No se puede degradar el administrador semilla.' },403);
+      let passwordHash: string | null = null;
+      if (data?.password) passwordHash = await hashPassword(String(data.password));
+      const existing = await db.execute({ sql: 'SELECT password_hash FROM users WHERE id=?', args: [id] });
+      if (!existing.rows.length && !passwordHash) return json({ error: 'La contraseña es obligatoria para crear un usuario.' },400);
+      const hash = passwordHash || String((existing.rows[0] as any).password_hash);
+      const userData = { ...data, id, uid: id, username, email, nombre, rol, accesoBloqueado: !!data?.accesoBloqueado };
+      delete (userData as any).password;
+      await db.execute({ sql: `INSERT INTO users(id,username,email,nombre,rol,password_hash,acceso_bloqueado,is_seed_admin,data_json,updated_at)
+        VALUES(?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+        ON CONFLICT(id) DO UPDATE SET username=excluded.username,email=excluded.email,nombre=excluded.nombre,rol=excluded.rol,password_hash=excluded.password_hash,acceso_bloqueado=excluded.acceso_bloqueado,data_json=excluded.data_json,updated_at=CURRENT_TIMESTAMP`,
+        args: [id, username, email, nombre, rol, hash, data?.accesoBloqueado ? 1 : 0, id === 'seed-admin' ? 1 : 0, JSON.stringify(userData)] });
+      return json({ ok: true, id });
+    }
     if (collection === 'config') {
       await db.execute({ sql: 'INSERT INTO app_config (id,data_json,updated_at) VALUES (?,?,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET data_json=excluded.data_json,updated_at=CURRENT_TIMESTAMP', args: [id, JSON.stringify(data)] });
     } else if (collection === 'catalogos') {
@@ -80,6 +108,11 @@ export async function DELETE(request: NextRequest, context: Context) {
     const id = request.nextUrl.searchParams.get('id');
     if (!id) return json({ error: 'Falta id.' }, 400);
     const db = await getTurso();
+    if (collection === 'users') {
+      if (id === 'seed-admin') return json({ error: 'No se puede eliminar el administrador semilla.' },403);
+      await db.execute({ sql: 'DELETE FROM users WHERE id=?', args: [id] });
+      return json({ ok: true });
+    }
     if (collection === 'config') await db.execute({ sql: 'DELETE FROM app_config WHERE id=?', args: [id] });
     else if (collection === 'catalogos') await db.execute({ sql: 'DELETE FROM catalogos WHERE nombre=?', args: [id] });
     else await db.execute({ sql: 'DELETE FROM pos_records WHERE collection=? AND id=?', args: [collection, id] });
