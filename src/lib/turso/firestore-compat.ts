@@ -6,7 +6,7 @@ const API = '/api/turso';
 export const db = { kind: 'turso' };
 export const rtdb = { kind: 'turso' };
 export type DocumentData = Record<string, any>;
-export type QueryDocumentSnapshot = Snap;
+export type QueryDocumentSnapshot<T = DocumentData> = Snap & { data: () => T };
 
 function url(ref: Ref) { return API + '/' + encodeURIComponent(ref.collection) + (ref.id ? '?id=' + encodeURIComponent(ref.id) : ''); }
 async function request(ref: Ref, init?: RequestInit) {
@@ -65,11 +65,18 @@ function applyConstraints(items: any[], constraints: any[] = []) {
   return out;
 }
 export async function getDoc(ref: Ref) { return snap(ref, await request(ref).catch(e => { if (String(e?.message).includes('(404)')) return null; throw e; })); }
+function makeQuerySnapshot(docs: Snap[], changes: any[] = []) {
+  return {
+    docs, empty: docs.length === 0, size: docs.length,
+    forEach: (fn: (s: Snap) => void) => docs.forEach(fn),
+    docChanges: () => changes
+  };
+}
 export async function getDocs(ref: Ref) {
   const data = await request({ ...ref, id: undefined });
   const items = applyConstraints(Array.isArray(data) ? data : [], ref.constraints);
   const docs = items.map(item => snap({ kind: 'doc', collection: ref.collection, id: String(item.id) }, item));
-  return { docs, empty: docs.length === 0, size: docs.length, forEach: (fn: (s: Snap) => void) => docs.forEach(fn) };
+  return makeQuerySnapshot(docs, docs.map(doc => ({ type: 'added', doc })));
 }
 export async function setDoc(ref: Ref, data: any, options?: { merge?: boolean }) {
   let payload = data;
@@ -89,11 +96,31 @@ export async function deleteDoc(ref: Ref) {
 }
 export function onSnapshot(ref: Ref, next: (snapshot: any) => void, error?: (error: any) => void) {
   let stopped = false;
+  let previous = new Map<string, Snap>();
+  let initialized = false;
   const read = async () => {
     try {
       if (stopped) return;
-      if (ref.kind === 'doc') next(await getDoc(ref));
-      else next(await getDocs(ref));
+      if (ref.kind === 'doc') {
+        next(await getDoc(ref));
+        return;
+      }
+      const current = await getDocs(ref);
+      const currentMap = new Map<string, Snap>(current.docs.map((doc: Snap) => [doc.id, doc]));
+      const changes: any[] = [];
+      currentMap.forEach((doc, id) => {
+        const before = previous.get(id);
+        if (!before) changes.push({ type: 'added', doc });
+        else if (JSON.stringify(before.data()) !== JSON.stringify(doc.data())) changes.push({ type: 'modified', doc });
+      });
+      previous.forEach((doc, id) => { if (!currentMap.has(id)) changes.push({ type: 'removed', doc }); });
+      if (!initialized) {
+        changes.length = 0;
+        currentMap.forEach(doc => changes.push({ type: 'added', doc }));
+        initialized = true;
+      }
+      previous = currentMap;
+      next(makeQuerySnapshot(current.docs, changes));
     } catch (e) { error?.(e); }
   };
   void read();
