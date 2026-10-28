@@ -17,8 +17,8 @@ import {
   RefreshCw,
   Database
 } from 'lucide-react';
-import { db } from '@/lib/firebase';
-import { collection, doc, updateDoc, onSnapshot, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
+import { db } from '@/lib/turso/data-client';
+import { collection, doc, updateDoc, onSnapshot, getDocs, setDoc, deleteDoc } from '@/lib/turso/data-client';
 import { toast } from '@/hooks/use-toast';
 
 export default function GlobalControlModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
