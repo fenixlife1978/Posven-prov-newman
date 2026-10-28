@@ -31,9 +31,10 @@ import {
 } from 'lucide-react';
 import { Store, initialState, Utils } from '@/lib/db-store';
 import { AppState, Terminal, Debt } from '@/lib/types';
-import { auth, db } from '@/lib/firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, onSnapshot, getDoc, collection, query, getDocs, where, setDoc } from 'firebase/firestore';
+import { auth } from '@/lib/turso/auth-compat';
+import { db } from '@/lib/turso/firestore-compat';
+import { onAuthStateChanged, signOut } from '@/lib/turso/auth-compat';
+import { doc, onSnapshot, getDoc, collection, query, getDocs, where, setDoc } from '@/lib/turso/firestore-compat';
 import DashboardModule from '@/components/modules/DashboardModule';
 import { InventoryModule } from '@/components/modules/InventoryModule';
 import SalesModule from '@/components/modules/SalesModule';
