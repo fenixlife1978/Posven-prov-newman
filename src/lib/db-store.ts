@@ -16,7 +16,7 @@ const CONFIG_DOC_ID = 'general';
 const CATALOGOS_COLLECTION = 'catalogos';
 
 // ============================================================
-// UBICACIÓN EN FIRESTORE POR LISTA DEL ESTADO.
+// UBICACIÓN EN TURSO POR LISTA DEL ESTADO.
 // Cada lista vive en SU PROPIA COLECCIÓN (documento por registro).
 // El doc pos_system_data/state YA NO se lee ni se escribe.
 // ============================================================
@@ -1984,8 +1984,6 @@ export const Store = {
     // Las colecciones autoritativas se actualizan por sus snapshots. Solo
     // parcheamos libroDiario para que el asiento aparezca inmediatamente.
     if (result?.products?.length) {
-      // Productos: Turso sigue siendo la fuente de verdad y RTDB es su espejo.
-      await syncProductosTurso(cache.productos || [], result.products);
       applyPatch({ productos: mergeById(cache.productos || [], result.products) });
     }
     if (result?.journals?.length) {
