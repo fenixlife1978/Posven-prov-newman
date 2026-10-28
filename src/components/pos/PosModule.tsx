@@ -41,7 +41,7 @@ import {
   Loader2,
   Hash
 } from 'lucide-react';
-import { auth } from '@/lib/firebase';
+import { auth } from '@/lib/turso/auth-compat';
 import { ReceiptModal } from '@/components/pos/ReceiptModal';
 import FloatingPaymentModal from '@/components/pos/FloatingPaymentModal';
 import { toast } from '@/hooks/use-toast';
@@ -350,7 +350,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     setReportLoadingType(type);
     try {
       // Garantiza que ventas/devoluciones/libroDiario/etc. estén cargados
-      // desde Firestore antes de calcular. Evita el bug de "$0" tras reinicio
+      // desde Turso antes de calcular. Evita el bug de "$0" tras reinicio
       // o corte de luz, donde el cache aún no terminó de hidratarse.
       const freshBeforeReport = Store.get();
       const terminalCashBeforeReport = Utils.getTerminalCash(currentTerminal);
@@ -687,7 +687,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         return;
       }
 
-      // El correlativo, inventario y movimientos ya fueron confirmados en Firestore.
+      // El correlativo, inventario y movimientos ya fueron confirmados en Turso.
       // Aquí solo limpiamos el carrito local; los datos autoritativos llegan por snapshots.
       updateState({ carrito: [] });
       setLastProcessedSale(resultado.sale);
@@ -727,7 +727,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         : undefined;
       const nombreClienteCanonico = clienteActual?.name || (cedulaMatch ? clienteRaw.replace(/\s*\[[^\]]+\]\s*$/, '').trim() : clienteRaw) || 'CLIENTE';
       const ahoraStr = Utils.ahora(), terminal = getCurrentTerminal();
-      // El correlativo de COBRO DE DEUDA lo asigna Firestore dentro de la
+      // El correlativo de COBRO DE DEUDA lo asigna Turso dentro de la
       // transacción, usando la secuencia exclusiva de esta caja.
       const reciboProvisional = 'PEND-CXC-' + Store.uid().toUpperCase().slice(0, 8);
       const pagoAtomic = {
