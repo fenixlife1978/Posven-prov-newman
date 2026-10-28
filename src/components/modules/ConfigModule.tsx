@@ -2,12 +2,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { AppState } from '@/lib/types';
-import { Save, AlertTriangle, RefreshCw, Database, Activity, BookOpen, PenLine, Trash2 } from 'lucide-react';
+import { Save, AlertTriangle, RefreshCw, Activity, BookOpen, PenLine, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { db, auth } from '@/lib/firebase';
-import { collection, getDocs, deleteDoc, doc, setDoc, writeBatch, query, limit } from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
-import { migrarEstructura } from '@/lib/migracion-firestore';
+import { db } from '@/lib/turso/data-client';
+import { auth, signOut } from '@/lib/turso/auth-compat';
+import { collection, getDocs, deleteDoc, doc, setDoc, writeBatch, query, limit } from '@/lib/turso/data-client';
 import { crearRespaldo, descargarRespaldo, cargarRespaldoDesdeArchivo } from '@/lib/backup';
 
 export default function ConfigModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
@@ -15,9 +14,6 @@ export default function ConfigModule({ state, updateState }: { state: AppState, 
   const [empresa, setEmpresa] = useState(state.empresa);
   const [pinDevolucion, setPinDevolucion] = useState(state.pinDevolucion || '');
   const [isFormatting, setIsFormatting] = useState(false);
-  const [isMigrating, setIsMigrating] = useState(false);
-  const [migracionResultado, setMigracionResultado] = useState<any>(null);
-  const [showMigracionResultado, setShowMigracionResultado] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [backupError, setBackupError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -100,41 +96,6 @@ export default function ConfigModule({ state, updateState }: { state: AppState, 
       await deleteCollection(collectionPath, batchSize);
     } catch (error) {
       console.warn(`⚠️ Error al eliminar colección "${collectionPath}":`, error);
-    }
-  };
-
-  const handleMigrar = async () => {
-    if (!confirm('¿Estás seguro de que quieres migrar los datos a la nueva estructura?\n\nEsta acción:\n- Creará colecciones separadas para: config, catalogos, inventario, ventas, movimientos, terminales, proveedores, devoluciones\n- Los datos existentes se mantendrán en la estructura antigua también\n- No se eliminarán datos existentes')) {
-      return;
-    }
-
-    setIsMigrating(true);
-    setShowMigracionResultado(false);
-    try {
-      const result = await migrarEstructura();
-      setMigracionResultado(result);
-      setShowMigracionResultado(true);
-      
-      if (result.success && result.resultados) {
-        toast({ 
-          title: "✅ Migración exitosa", 
-          description: `Se migraron ${result.resultados.inventario} productos, ${result.resultados.ventas} ventas, etc.` 
-        });
-      } else {
-        toast({ 
-          variant: "destructive", 
-          title: "❌ Error en migración", 
-          description: result.error || 'Error desconocido'
-        });
-      }
-    } catch (error: any) {
-      toast({ 
-        variant: "destructive", 
-        title: "❌ Error", 
-        description: String(error) 
-      });
-    } finally {
-      setIsMigrating(false);
     }
   };
 
@@ -338,64 +299,6 @@ export default function ConfigModule({ state, updateState }: { state: AppState, 
           <button className="btn btn-primary h-12 px-8 font-black uppercase text-xs shadow-md" onClick={guardarEmpresa}>
             <Save className="w-4 h-4" /> Actualizar Empresa
           </button>
-        </div>
-      </div>
-
-      {/* ===== MIGRACIÓN DE DATOS ===== */}
-      <div className="card shadow-lg border-blue-500/30 bg-blue-50 border-2">
-        <div className="card-head border-b border-blue-500/20 px-5 py-4">
-          <h3 className="text-blue-700 font-black uppercase italic text-xs flex items-center gap-2">
-            <Database className="w-4 h-4" /> Migración de Estructura de Datos
-          </h3>
-        </div>
-        <div className="card-body p-6 bg-white">
-          <p className="text-xs text-ink font-bold mb-4">
-            Esta acción migrará los datos de la estructura antigua (documento único) a la nueva estructura (colecciones separadas).
-          </p>
-          <div className="flex flex-col gap-3">
-            <button 
-              className="btn bg-blue-600 hover:bg-blue-700 text-white h-12 px-8 font-black uppercase text-xs shadow-xl flex items-center gap-2" 
-              onClick={handleMigrar}
-              disabled={isMigrating}
-            >
-              {isMigrating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
-              {isMigrating ? 'MIGRANDO DATOS...' : 'Migrar Estructura de Datos'}
-            </button>
-
-            {showMigracionResultado && migracionResultado && (
-              <div className={`mt-4 p-4 rounded-lg border ${migracionResultado.success ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500'}`}>
-                <h4 className={`font-black uppercase text-xs mb-2 ${migracionResultado.success ? 'text-green-700' : 'text-red-700'}`}>
-                  {migracionResultado.success ? '✅ Migración completada exitosamente' : '❌ Error en migración'}
-                </h4>
-                {migracionResultado.success && resultados ? (
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="flex justify-between"><span className="font-bold">Config:</span> <span>{resultados.config || 0}</span></div>
-                    <div className="flex justify-between"><span className="font-bold">Catálogos:</span> <span>{resultados.catalogos || 0}</span></div>
-                    <div className="flex justify-between"><span className="font-bold">Inventario:</span> <span>{resultados.inventario || 0}</span></div>
-                    <div className="flex justify-between"><span className="font-bold">Ventas:</span> <span>{resultados.ventas || 0}</span></div>
-                    <div className="flex justify-between"><span className="font-bold">Movimientos:</span> <span>{resultados.movimientos || 0}</span></div>
-                    <div className="flex justify-between"><span className="font-bold">Terminales:</span> <span>{resultados.terminales || 0}</span></div>
-                    <div className="flex justify-between"><span className="font-bold">Proveedores:</span> <span>{resultados.proveedores || 0}</span></div>
-                    <div className="flex justify-between"><span className="font-bold">Devoluciones:</span> <span>{resultados.devoluciones || 0}</span></div>
-                    <div className="flex justify-between"><span className="font-bold">Anulaciones:</span> <span>{resultados.anulaciones || 0}</span></div>
-                    <div className="flex justify-between"><span className="font-bold">CXC:</span> <span>{resultados.cxc || 0}</span></div>
-                    <div className="flex justify-between"><span className="font-bold">CXP:</span> <span>{resultados.cxp || 0}</span></div>
-                    <div className="flex justify-between"><span className="font-bold">Clientes:</span> <span>{resultados.clientes || 0}</span></div>
-                  </div>
-                ) : migracionResultado.success ? (
-                  <p className="text-xs text-yellow-700">No se encontraron resultados para mostrar</p>
-                ) : (
-                  <p className="text-xs text-red-700">{migracionResultado.error || 'Error desconocido'}</p>
-                )}
-                <button 
-                  className="mt-3 text-xs font-black underline hover:no-underline"
-                  onClick={() => setShowMigracionResultado(false)}
-                >
-                  Cerrar
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
