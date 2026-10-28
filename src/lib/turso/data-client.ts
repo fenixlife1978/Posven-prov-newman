@@ -4,7 +4,6 @@ type Ref = { kind: 'collection' | 'doc'; collection: string; id?: string; constr
 type Snap = { id: string; exists: () => boolean; data: () => any; ref: Ref };
 const API = '/api/turso';
 export const db = { kind: 'turso' };
-export const rtdb = { kind: 'turso' };
 export type DocumentData = Record<string, any>;
 export type QueryDocumentSnapshot<T = DocumentData> = Snap & { data: () => T };
 
