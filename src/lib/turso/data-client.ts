@@ -1,13 +1,13 @@
 'use client';
 
 type Ref = { kind: 'collection' | 'doc'; collection: string; id?: string; constraints?: any[] };
-type Snap = { id: string; exists: () => boolean; data: () => any; ref: Ref };
+type Snap = { id: string; exists: () => boolean; data: () => any; ref: Ref; revision: number | null };
 const API = '/api/turso';
 export const db = { kind: 'turso' };
 export type DocumentData = Record<string, any>;
 export type QueryDocumentSnapshot<T = DocumentData> = Snap & { data: () => T };
 
-function url(ref: Ref) { return API + '/' + encodeURIComponent(ref.collection) + (ref.id ? '?id=' + encodeURIComponent(ref.id) : ''); }
+function url(ref: Ref) { return API + '/' + encodeURIComponent(ref.collection) + (ref.id ? '?id=' + encodeURIComponent(ref.id) : '?limit=5000'); }
 async function request(ref: Ref, init?: RequestInit) {
   const response = await fetch(url(ref), { credentials: 'same-origin', cache: 'no-store', ...init });
   if (!response.ok) {
@@ -18,8 +18,10 @@ async function request(ref: Ref, init?: RequestInit) {
   return response.status === 204 ? null : response.json();
 }
 function snap(ref: Ref, value: any): Snap {
-  const data = value == null ? undefined : value;
-  return { id: ref.id || String(data?.id || ''), exists: () => data !== undefined && data !== null, data: () => data, ref };
+  const revision = value?.__tursoRevision == null ? null : Number(value.__tursoRevision);
+  const data = value == null ? undefined : { ...value };
+  if (data) delete data.__tursoRevision;
+  return { id: ref.id || String(data?.id || ''), exists: () => data !== undefined && data !== null, data: () => data, ref, revision };
 }
 export function collection(_db: any, name: string): Ref { return { kind: 'collection', collection: name }; }
 export function doc(parent: any, nameOrId: string, maybeId?: string): Ref {
@@ -139,11 +141,25 @@ export function writeBatch(_db: any) {
 }
 export async function runTransaction<T>(_db: any, callback: (tx: any) => Promise<T>): Promise<T> {
   const writes: any[] = [];
+  const reads = new Map<string, { revision: number | null }>();
+  const keyOf = (ref: Ref) => ref.collection + '\\u0000' + String(ref.id || '');
+  const enqueue = (op: string, ref: Ref, data?: any, options?: { merge?: boolean }) => {
+    const key = keyOf(ref);
+    const read = reads.get(key);
+    writes.push({
+      op, collection: ref.collection, id: ref.id, data, merge: !!options?.merge,
+      ...(read ? { checkRevision: true, expectedRevision: read.revision } : {})
+    });
+  };
   const tx = {
-    async get(ref: Ref) { return getDoc(ref); },
-    set(ref: Ref, data: any, options?: { merge?: boolean }) { writes.push({ op: 'set', collection: ref.collection, id: ref.id, data, merge: !!options?.merge }); return tx; },
-    update(ref: Ref, data: any) { writes.push({ op: 'update', collection: ref.collection, id: ref.id, data }); return tx; },
-    delete(ref: Ref) { writes.push({ op: 'delete', collection: ref.collection, id: ref.id }); return tx; }
+    async get(ref: Ref) {
+      const result = await getDoc(ref);
+      reads.set(keyOf(ref), { revision: result.exists() ? result.revision : null });
+      return result;
+    },
+    set(ref: Ref, data: any, options?: { merge?: boolean }) { enqueue('set', ref, data, options); return tx; },
+    update(ref: Ref, data: any) { enqueue('update', ref, data); return tx; },
+    delete(ref: Ref) { enqueue('delete', ref); return tx; }
   };
   const result = await callback(tx);
   if (writes.length) {
