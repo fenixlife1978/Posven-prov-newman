@@ -22,6 +22,7 @@ export async function GET(request: NextRequest, context: Context) {
     const id = request.nextUrl.searchParams.get('id');
     const db = await getTurso();
     if (collection === 'users') {
+      if (user.rol !== 'administrador') return json({ error: 'Permisos insuficientes.' }, 403);
       const sql = id
         ? 'SELECT id,username,email,nombre,rol,acceso_bloqueado,is_seed_admin,data_json FROM users WHERE id=?'
         : 'SELECT id,username,email,nombre,rol,acceso_bloqueado,is_seed_admin,data_json FROM users ORDER BY username';
