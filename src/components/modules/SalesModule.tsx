@@ -41,7 +41,7 @@ import {
   Loader2,
   Hash
 } from 'lucide-react';
-import { auth } from '@/lib/firebase';
+import { auth } from '@/lib/turso/auth-compat';
 import { ReceiptModal } from '@/components/pos/ReceiptModal';
 import { CreditModal } from '@/components/pos/CreditSaleModal';
 import FloatingPaymentModal from '@/components/pos/FloatingPaymentModal';
