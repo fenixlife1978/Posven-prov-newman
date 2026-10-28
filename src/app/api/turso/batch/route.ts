@@ -16,6 +16,12 @@ export async function POST(request: NextRequest) {
     for (const w of writes) {
       if (!allowed.has(String(w.collection)) || !w.id) throw new Error('Colección o identificador inválido.');
       const collection = String(w.collection), id = String(w.id);
+      if (w.checkRevision === true && !['config','catalogos','users','operaciones','auditoriaSistema'].includes(collection)) {
+        const current = await tx.execute({ sql: 'SELECT revision FROM pos_records WHERE collection=? AND id=?', args: [collection, id] });
+        const currentRevision = current.rows.length ? Number((current.rows[0] as any).revision || 1) : null;
+        const expectedRevision = w.expectedRevision == null ? null : Number(w.expectedRevision);
+        if (currentRevision !== expectedRevision) throw new Error('Conflicto de concurrencia en ' + collection + '/' + id + '. Vuelva a cargar los datos antes de repetir la operación.');
+      }
       if (collection === 'config') {
         if (w.op === 'delete') await tx.execute({ sql: 'DELETE FROM app_config WHERE id=?', args: [id] });
         else {
@@ -79,7 +85,7 @@ export async function POST(request: NextRequest) {
           if (w.op === 'update' && !old.rows.length) throw new Error('El registro no existe: ' + collection + '/' + id);
           data = { ...(old.rows.length ? JSON.parse(String((old.rows[0] as any).data_json)) : {}), ...data };
         }
-        await tx.execute({ sql: 'INSERT INTO pos_records(collection,id,data_json,updated_at) VALUES(?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(collection,id) DO UPDATE SET data_json=excluded.data_json,updated_at=CURRENT_TIMESTAMP', args: [collection, id, JSON.stringify(data)] });
+        await tx.execute({ sql: 'INSERT INTO pos_records(collection,id,data_json,revision,updated_at) VALUES(?,?,?,1,CURRENT_TIMESTAMP) ON CONFLICT(collection,id) DO UPDATE SET data_json=excluded.data_json,revision=pos_records.revision+1,updated_at=CURRENT_TIMESTAMP', args: [collection, id, JSON.stringify(data)] });
       }
     }
     await tx.commit();
