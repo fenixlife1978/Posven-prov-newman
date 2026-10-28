@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, context: Context) {
     }
     if (collection === 'config' && id) {
       const r = await db.execute({ sql: 'SELECT data_json FROM app_config WHERE id=?', args: [id] });
-      return r.rows.length ? json({ ...parseRow(r.rows[0] as Record<string, any>), __tursoRevision: Number((r.rows[0] as any).revision || 1) }) : json(null, 404);
+      return r.rows.length ? json(parseRow(r.rows[0] as Record<string, any>)) : json(null, 404);
     }
     if (collection === 'catalogos' && id) {
       const r = await db.execute({ sql: 'SELECT lista_json FROM catalogos WHERE nombre=?', args: [id] }).catch(() => ({ rows: [] as any[] }));
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest, context: Context) {
     }
     if (id) {
       const r = await db.execute({ sql: 'SELECT data_json,revision FROM pos_records WHERE collection=? AND id=?', args: [collection, id] });
-      return r.rows.length ? json(parseRow(r.rows[0] as Record<string, any>)) : json(null, 404);
+      return r.rows.length ? json({ ...parseRow(r.rows[0] as Record<string, any>), __tursoRevision: Number((r.rows[0] as any).revision || 1) }) : json(null, 404);
     }
     if (collection === 'catalogos') {
       const r = await db.execute('SELECT nombre,lista_json,data_json FROM catalogos ORDER BY nombre');
