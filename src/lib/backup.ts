@@ -1,8 +1,7 @@
 'use client';
 
-import { db, rtdb } from '@/lib/turso/firestore-compat';
+import { db } from '@/lib/turso/firestore-compat';
 import { collection, getDocs, getDoc, setDoc, doc, writeBatch } from '@/lib/turso/firestore-compat';
-import { get as rtdbGet, ref as rtdbRef } from '@/lib/turso/realtime-compat';
 import { Store } from '@/lib/db-store';
 
 // Fuentes persistentes actuales de Turso.
@@ -44,7 +43,6 @@ const CONFIG_KEYS = [
 ] as const;
 
 // Lectura de compatibilidad de productos desde la misma tabla Turso.
-const RTDB_PRODUCTS_PATH = 'pos_system_data/productos';
 
 export interface BackupFile {
   app: 'posven-pro';
@@ -55,7 +53,6 @@ export interface BackupFile {
     tursoCollections: Record<string, number>;
     catalogs: Record<string, number>;
     legacyDocuments: Record<string, boolean>;
-    rtdbProductsPresent: boolean;
     authentication: {
       provider: 'Turso-auth';
       credentialsIncluded: false;
@@ -139,7 +136,6 @@ export async function crearRespaldo(): Promise<BackupFile> {
     const snap = await rtdbGet(rtdbRef(rtdb, RTDB_PRODUCTS_PATH));
     if (snap.exists()) {
       rtdbProductsPresent = true;
-      data.rtdb_productos = snap.val();
     }
   } catch (e) {
     console.error('backup: no se pudo leer rtdb productos', e);
@@ -154,7 +150,6 @@ export async function crearRespaldo(): Promise<BackupFile> {
       tursoCollections,
       catalogs,
       legacyDocuments,
-      rtdbProductsPresent,
       authentication: {
         provider: 'turso-sessions',
         credentialsIncluded: false,
