@@ -21,10 +21,6 @@ const AUXILIARY_COLLECTIONS = [
 
 // Fuentes históricas/compatibilidad detectadas en el repositorio.
 // Se respaldan aunque el código operativo actual ya no las use.
-const LEGACY_DOCUMENTS = [
-  ['pos_system_data', 'state'],
-  ['data', 'state'],
-] as const;
 
 // Catálogos: catalogos/{nombre} con { lista }.
 const CATALOG_KEYS = [
@@ -52,7 +48,6 @@ export interface BackupFile {
   meta?: {
     tursoCollections: Record<string, number>;
     catalogs: Record<string, number>;
-    legacyDocuments: Record<string, boolean>;
     authentication: {
       provider: 'Turso-auth';
       credentialsIncluded: false;
@@ -78,7 +73,6 @@ export async function crearRespaldo(): Promise<BackupFile> {
   const data: Record<string, unknown> = {};
   const tursoCollections: Record<string, number> = {};
   const catalogs: Record<string, number> = {};
-  const legacyDocuments: Record<string, boolean> = {};
 
   // Colecciones operativas completas.
   for (const k of COLLECTION_KEYS) {
@@ -149,7 +143,6 @@ export async function crearRespaldo(): Promise<BackupFile> {
     meta: {
       tursoCollections,
       catalogs,
-      legacyDocuments,
       authentication: {
         provider: 'turso-sessions',
         credentialsIncluded: false,
