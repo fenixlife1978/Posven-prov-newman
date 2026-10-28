@@ -10,6 +10,17 @@ CREATE TABLE IF NOT EXISTS app_config (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Repositorio JSON flexible usado por la capa de compatibilidad de los módulos.
+CREATE TABLE IF NOT EXISTS pos_records (
+  collection TEXT NOT NULL,
+  id TEXT NOT NULL,
+  data_json TEXT NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (collection, id)
+);
+CREATE INDEX IF NOT EXISTS idx_pos_records_collection_updated ON pos_records(collection, updated_at);
+
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   username TEXT NOT NULL UNIQUE,
